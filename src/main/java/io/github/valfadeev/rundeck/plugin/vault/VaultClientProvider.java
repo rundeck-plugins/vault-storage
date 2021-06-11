@@ -1,6 +1,11 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 import com.bettercloud.vault.SslConfig;
@@ -233,6 +238,30 @@ class VaultClientProvider {
                 }
                 break;
 
+            case KUBERNETES:
+                final String vaultRole = configuration.getProperty(VAULT_ROLE);
+                String vaultK8sToken = "";
+                try {
+                    vaultK8sToken = Files.readString(Path.of("/var/run/secrets/kubernetes.io/serviceaccount/token"), StandardCharsets.US_ASCII);
+                }  catch (IOException e) {
+                    throw new ConfigurationException(
+                            String.format("Encountered error while authenticating with %s",
+                                    vaultAuthBackend)
+                    );
+                }
+
+               try {
+                    authToken = vaultAuth
+                            .loginByKubernetes(vaultRole, vaultK8sToken)
+                            .getAuthClientToken();
+
+                } catch (VaultException e) {
+                    throw new ConfigurationException(
+                            String.format("Encountered error while authenticating with %s",
+                                    vaultAuthBackend)
+                    );
+                }
+                break;
             default:
                 throw new ConfigurationException(
                         String.format("Unsupported auth backend: %s", vaultAuthBackend));

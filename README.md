@@ -34,7 +34,7 @@ rundeck.storage.provider.[index].config.authBackend=authBackend
 
 Default value: token
 
-Allowed values: approle, cert, github, token, userpass
+Allowed values: approle, cert, github, token, userpass, kubernetes
 
 * **token**: Vault authentication token. Required, if authentication backend is 'token'
 
@@ -167,6 +167,14 @@ rundeck.storage.provider.[index].config.engineVersion=1/2
 ```
 
 Default value: 1
+
+* **role**:  The role name for Kubernetes authentication back end, as described [here](https://www.vaultproject.io/api/auth/kubernetes#create-role).
+
+```
+rundeck.storage.provider.[index].config.role=rundeck
+```
+
+Default value: rundeck
 
 ### Configuration Examples
 

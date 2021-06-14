@@ -6,4 +6,5 @@ class SupportedAuthBackends {
     static final String GITHUB = "github";
     static final String TOKEN = "token";
     static final String USERPASS = "userpass";
+    static final String KUBERNETES = "kubernetes";
 }

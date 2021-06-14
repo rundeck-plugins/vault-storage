@@ -26,5 +26,5 @@ class ConfigOptions {
     static final String VAULT_SECRET_BACKEND = "secretBackend";
     static final String VAULT_STORAGE_BEHAVIOUR = "storageBehaviour";
     static final String VAULT_ENGINE_VERSION = "engineVersion";
-
+    static final String VAULT_ROLE = "role";
 }

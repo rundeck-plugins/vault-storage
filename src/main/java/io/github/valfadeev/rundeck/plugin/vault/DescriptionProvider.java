@@ -172,6 +172,11 @@ class DescriptionProvider {
                         .values(Arrays.asList("1","2"))
                         .defaultValue("1")
                 )
+                .property(PropertyBuilder.builder()
+                        .string(VAULT_ROLE)
+                        .title("Role name")
+                        .description("The role name for Kubernetes authentication back end")
+                )
                 .build();
     }
 }

@@ -21,6 +21,7 @@ import static io.github.valfadeev.rundeck.plugin.vault.SupportedAuthBackends.*;
 class VaultClientProvider {
 
     private Properties configuration;
+    protected static final String K8S_SERVICE_ACCOUNT_TOKEN = "/var/run/secrets/kubernetes.io/serviceaccount/token";
 
     VaultClientProvider(Properties configuration) {
         this.configuration = configuration;
@@ -242,15 +243,15 @@ class VaultClientProvider {
                 final String vaultRole = configuration.getProperty(VAULT_ROLE);
                 String vaultK8sToken = "";
                 try {
-                    vaultK8sToken = Files.readString(Path.of("/var/run/secrets/kubernetes.io/serviceaccount/token"), StandardCharsets.US_ASCII);
+                    vaultK8sToken = Files.readString(Path.of(K8S_SERVICE_ACCOUNT_TOKEN), StandardCharsets.US_ASCII);
                 }  catch (IOException e) {
                     throw new ConfigurationException(
-                            String.format("Encountered error while authenticating with %s",
-                                    vaultAuthBackend)
+                            String.format("Rundeck should be running in Pod for Kubernetes authentication type.")
                     );
                 }
 
-               try {
+                try {
+
                     authToken = vaultAuth
                             .loginByKubernetes(vaultRole, vaultK8sToken)
                             .getAuthClientToken();

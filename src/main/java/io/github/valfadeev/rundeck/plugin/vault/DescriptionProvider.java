@@ -172,6 +172,11 @@ class DescriptionProvider {
                         .values(Arrays.asList("1","2"))
                         .defaultValue("1")
                 )
+                .property(PropertyBuilder.builder()
+                        .string(VAULT_AUTH_NAMESPACE)
+                        .title("Authentication Namespace")
+                        .description("The namespace for authentication")
+                )
                 .build();
     }
 }

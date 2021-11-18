@@ -8,9 +8,7 @@ RUN apt-get update && \
     apt-get -y install jq
 
 # add cli tool debian repo
-RUN echo "deb https://dl.bintray.com/rundeck/rundeck-deb /" | sudo tee -a /etc/apt/sources.list
-RUN curl "https://bintray.com/user/downloadSubjectPublicKey?username=bintray" > /tmp/bintray.gpg.key
-RUN apt-key add - < /tmp/bintray.gpg.key
+RUN curl -s https://packagecloud.io/install/repositories/pagerduty/rundeck/script.deb.sh | os=any dist=any bash
 RUN apt-get -y update
 RUN apt-get -y install rundeck-cli
 

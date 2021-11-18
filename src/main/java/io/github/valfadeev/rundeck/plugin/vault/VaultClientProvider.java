@@ -127,8 +127,9 @@ class VaultClientProvider {
         return sslConfig;
     }
 
-    private String getVaultAuthToken() throws ConfigurationException {
+    private String getVaultAuthToken() throws ConfigurationException, VaultException {
         final String vaultAuthBackend = configuration.getProperty(VAULT_AUTH_BACKEND);
+        final String vaultAuthNameSpace = configuration.getProperty(VAULT_AUTH_NAMESPACE);
 
         final String authToken;
         final String msg = "Must specify %s when auth backend is %s";
@@ -148,6 +149,10 @@ class VaultClientProvider {
         }
 
         final VaultConfig vaultAuthConfig = getVaultConfig();
+        if(vaultAuthNameSpace!=null && !vaultAuthNameSpace.isEmpty()){
+            vaultAuthConfig.nameSpace(vaultAuthNameSpace);
+        }
+
         final Auth vaultAuth = new Vault(vaultAuthConfig).auth();
 
         switch (vaultAuthBackend) {

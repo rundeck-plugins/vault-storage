@@ -12,13 +12,11 @@ import com.bettercloud.vault.response.LogicalResponse;
 import com.bettercloud.vault.response.LookupResponse;
 import com.bettercloud.vault.response.VaultResponse;
 import com.dtolabs.rundeck.core.plugins.Plugin;
-import com.dtolabs.rundeck.core.plugins.configuration.Configurable;
-import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException;
-import com.dtolabs.rundeck.core.plugins.configuration.Describable;
-import com.dtolabs.rundeck.core.plugins.configuration.Description;
+import com.dtolabs.rundeck.core.plugins.configuration.*;
 import com.dtolabs.rundeck.core.storage.ResourceMeta;
 import com.dtolabs.rundeck.plugins.ServiceNameConstants;
 import com.dtolabs.rundeck.plugins.descriptions.PluginProperty;
+import com.dtolabs.rundeck.plugins.descriptions.RenderingOption;
 import com.dtolabs.rundeck.plugins.storage.StoragePlugin;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
@@ -66,6 +64,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     String address;
 
     @PluginProperty(title = "Vault token", description = "Vault authentication token. " + "Required, if authentication backend is 'token'")
+    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
     String token;
 
     @PluginProperty(title = "Vault auth backend", description = "Authentication backend", defaultValue = "token")
@@ -75,6 +74,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     String keyStoreFile;
 
     @PluginProperty(title = "Key store password", description = "The password needed to access the keystore", defaultValue = "")
+    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
     String keyStoreFilePassword;
 
     @PluginProperty(title = "Truststore file", description = "A JKS truststore file, containing the Vault " + "server's X509 certificate")
@@ -99,6 +99,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     String username;
 
     @PluginProperty(title = "Password", description = "Required for user/password and LDAP authentication backend")
+    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
     String password;
 
     @PluginProperty(title = "AppRole role ID", description = "The role-id used for authentication")
@@ -111,6 +112,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     String approleAuthMount;
 
     @PluginProperty(title = "GitHub token", description = "The app-id used for authentication")
+    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
     String githubToken;
 
     @PluginProperty(title = "Max retries", description = "Maximum number of connection " + "retries to Vault server", defaultValue = "5")

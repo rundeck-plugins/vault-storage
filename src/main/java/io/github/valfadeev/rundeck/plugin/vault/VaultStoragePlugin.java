@@ -18,6 +18,7 @@ import com.dtolabs.rundeck.core.plugins.configuration.Describable;
 import com.dtolabs.rundeck.core.plugins.configuration.Description;
 import com.dtolabs.rundeck.core.storage.ResourceMeta;
 import com.dtolabs.rundeck.plugins.ServiceNameConstants;
+import com.dtolabs.rundeck.plugins.descriptions.PluginDescription;
 import com.dtolabs.rundeck.plugins.descriptions.PluginProperty;
 import com.dtolabs.rundeck.plugins.storage.StoragePlugin;
 import org.rundeck.storage.api.Path;
@@ -35,6 +36,7 @@ import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
  * @since 2017-09-18
  */
 @Plugin(name = "vault-storage", service = ServiceNameConstants.Storage)
+@PluginDescription(title = "Vault Storage", description = "Use Hashicorp Vault as a storage layer")
 public class VaultStoragePlugin implements StoragePlugin {
 
     java.util.logging.Logger log = java.util.logging.Logger.getLogger("vault-storage");

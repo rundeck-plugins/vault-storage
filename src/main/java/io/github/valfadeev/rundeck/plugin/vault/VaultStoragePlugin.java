@@ -108,6 +108,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     String approleId;
 
     @PluginProperty(title = "AppRole secret ID", description = "The secret-id used for authentication")
+    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
     String approleSecretId;
 
     @PluginProperty(title = "AppRole mount name", description = "The mount name of the AppRole authentication back end")

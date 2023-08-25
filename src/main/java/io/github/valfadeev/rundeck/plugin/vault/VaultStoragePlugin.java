@@ -15,9 +15,7 @@ import com.dtolabs.rundeck.core.plugins.Plugin;
 import com.dtolabs.rundeck.core.plugins.configuration.*;
 import com.dtolabs.rundeck.core.storage.ResourceMeta;
 import com.dtolabs.rundeck.plugins.ServiceNameConstants;
-import com.dtolabs.rundeck.plugins.descriptions.PluginDescription;
-import com.dtolabs.rundeck.plugins.descriptions.PluginProperty;
-import com.dtolabs.rundeck.plugins.descriptions.RenderingOption;
+import com.dtolabs.rundeck.plugins.descriptions.*;
 import com.dtolabs.rundeck.plugins.storage.StoragePlugin;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
@@ -60,89 +58,132 @@ public class VaultStoragePlugin implements StoragePlugin {
     Properties properties = new Properties();
 
     @PluginProperty(title = "vaultPrefix", description = "username for the account to authenticate to")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
     String prefix;
 
     @PluginProperty(title = "Vault address", description = "Address of the Vault server", defaultValue = "https://localhost:8200")
+    @RenderingOptions({
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
+    })
     String address;
 
-    @PluginProperty(title = "Vault token", description = "Vault authentication token. " + "Required, if authentication backend is 'token'")
-    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
-    String token;
-
+    @SelectValues(freeSelect = false, values = { "token", "approle", "cert" , "github", "userpass"})
     @PluginProperty(title = "Vault auth backend", description = "Authentication backend", defaultValue = "token")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
+    })
     String authBackend;
 
-    @PluginProperty(title = "Key store file", description = "A Java keystore, containing a client certificate " + "that's registered with Vault's TLS Certificate auth backend.")
-    String keyStoreFile;
 
-    @PluginProperty(title = "Key store password", description = "The password needed to access the keystore", defaultValue = "")
-    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
-    String keyStoreFilePassword;
-
-    @PluginProperty(title = "Truststore file", description = "A JKS truststore file, containing the Vault " + "server's X509 certificate")
-    String trustStoreFile;
-
-    @PluginProperty(title = "PEM file", description = "The path of a file containing an X.509 certificate, " + "in unencrypted PEM format with UTF-8 encoding.")
-    String pemFile;
-
-    @PluginProperty(title = "Client PEM file", description = "The path of a file containing an X.509 certificate, " + "in unencrypted PEM format with UTF-8 encoding.")
-    String clientPemFile;
-
-    @PluginProperty(title = "Client Key PEM file", description = "The path of a file containing an RSA private key, " + "in unencrypted PEM format with UTF-8 encoding.")
-    String clientKeyPemFile;
-
-    @PluginProperty(title = "Disable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
-    String validateSsl;
-
-    @PluginProperty(title = "Userpass Mount name", description = "The mount name of the Userpass authentication back end", defaultValue = "userpass")
-    String userpassAuthMount;
-
-    @PluginProperty(title = "User name", description = "Required for user/password and LDAP authentication backend")
-    String username;
-
-    @PluginProperty(title = "Password", description = "Required for user/password and LDAP authentication backend")
-    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
-    String password;
+    @PluginProperty(title = "Vault token", description = "Vault authentication token. " + "Required, if authentication backend is 'token'")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD"),
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    })
+    String token;
 
     @PluginProperty(title = "AppRole role ID", description = "The role-id used for authentication")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication")
     String approleId;
 
     @PluginProperty(title = "AppRole secret ID", description = "The secret-id used for authentication")
-    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication")
     String approleSecretId;
 
     @PluginProperty(title = "AppRole mount name", description = "The mount name of the AppRole authentication back end")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication")
     String approleAuthMount;
 
+
+    @PluginProperty(title = "Key store file", description = "A Java keystore, containing a client certificate " + "that's registered with Vault's TLS Certificate auth backend.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    String keyStoreFile;
+
+    @PluginProperty(title = "Key store password", description = "The password needed to access the keystore", defaultValue = "")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
+    String keyStoreFilePassword;
+
+    @PluginProperty(title = "Truststore file", description = "A JKS truststore file, containing the Vault " + "server's X509 certificate")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
+    String trustStoreFile;
+
+    @PluginProperty(title = "PEM file", description = "The path of a file containing an X.509 certificate, " + "in unencrypted PEM format with UTF-8 encoding.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
+    String pemFile;
+
+    @PluginProperty(title = "Client PEM file", description = "The path of a file containing an X.509 certificate, " + "in unencrypted PEM format with UTF-8 encoding.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
+    String clientPemFile;
+
+    @PluginProperty(title = "Client Key PEM file", description = "The path of a file containing an RSA private key, " + "in unencrypted PEM format with UTF-8 encoding.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
+    String clientKeyPemFile;
+
+    @PluginProperty(title = "Disable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
+    Boolean validateSsl;
+
+    @PluginProperty(title = "Userpass Mount name", description = "The mount name of the Userpass authentication back end", defaultValue = "userpass")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    String userpassAuthMount;
+
+    @PluginProperty(title = "User name", description = "Required for user/password and LDAP authentication backend")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    String username;
+
+    @PluginProperty(title = "Password", description = "Required for user/password and LDAP authentication backend")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
+    String password;
+
     @PluginProperty(title = "GitHub token", description = "The app-id used for authentication")
-    @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
     String githubToken;
 
     @PluginProperty(title = "Max retries", description = "Maximum number of connection " + "retries to Vault server", defaultValue = "5")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Connection Config")
     String maxRetries;
 
     @PluginProperty(title = "Retry interval", description = "Connection retry interval, in ms", defaultValue = "1000")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Connection Config")
     String retryIntervalMilliseconds;
 
     @PluginProperty(title = "Open timeout", description = "Connection opening timeout, in seconds", defaultValue = "5")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Connection Config")
     String openTimeout;
 
     @PluginProperty(title = "Read timeout", description = "Response read timeout, in seconds", defaultValue = "20")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Connection Config")
     String readTimeout;
 
     @PluginProperty(title = "Secret Backend", description = "The secret backend to use in vault", defaultValue = "secret")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
     String secretBackend;
 
     @PluginProperty(title = "Namespace", description = "The namespace to access and save the secrets")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Enterprise Config")
     String namespace;
 
     @PluginProperty(title = "storageBehaviour", description = "storageBehaviour for the account to authenticate to")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
+    @SelectValues(freeSelect = false, values = { "vault", "rundeck"})
     String storageBehaviour;
 
     @PluginProperty(title = "Vault Engine Version", description = "Key/Value Secret Engine Config", defaultValue = "1")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
+    @SelectValues(freeSelect = false, values = { "1", "2"})
     String engineVersion;
 
     @PluginProperty(title = "Authentication Namespace", description = "The namespace for authentication")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
     String authNamespace;
 
     protected Vault getVaultClient() throws ConfigurationException {
@@ -184,7 +225,7 @@ public class VaultStoragePlugin implements StoragePlugin {
                 properties.setProperty(VAULT_CLIENT_KEY_PEM_FILE, clientKeyPemFile);
             }
             if(validateSsl != null){
-                properties.setProperty(VAULT_VERIFY_SSL, validateSsl);
+                properties.setProperty(VAULT_VERIFY_SSL, validateSsl.toString());
             }
             if(userpassAuthMount != null){
                 properties.setProperty(VAULT_USERPASS_AUTH_MOUNT, userpassAuthMount);

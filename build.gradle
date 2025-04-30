@@ -3,14 +3,14 @@ plugins {
     id 'groovy'
 
 }
-ext.rundeckVersion='3.0.2-20180803'
+ext.rundeckVersion='5.11.1-20250415'
 defaultTasks 'clean','build'
 apply plugin: 'java'
 apply plugin: 'idea'
 apply plugin: 'pl.allegro.tech.build.axion-release'
 apply plugin: 'groovy'
 
-sourceCompatibility = 1.8
+sourceCompatibility = 11
 ext.rundeckPluginVersion= '1.2'
 
 /**

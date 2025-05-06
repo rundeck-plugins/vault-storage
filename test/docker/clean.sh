@@ -6,5 +6,5 @@ cd $SCRIPTDIR
 
 for composefile in $(ls -1 docker-compose-*.yml); do
   echo "=== Purging resources from $composefile..."
-  docker-compose -f $composefile down --volumes --remove-orphans
+  docker compose -f $composefile down --volumes --remove-orphans
 done

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 set -e
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-export PATH=/usr/lib/jvm/java-8-openjdk-amd64/jre/bin:$PATH
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+export PATH=/usr/lib/jvm/java-11-openjdk-amd64/jre/bin:$PATH
 
 TEST_DIR=$1
 TEST_SCRIPT=${2:-/tests/run-tests.sh}

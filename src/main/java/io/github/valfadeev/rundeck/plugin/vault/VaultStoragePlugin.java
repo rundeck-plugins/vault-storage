@@ -122,7 +122,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     String clientKeyPemFile;
 
-    @PluginProperty(title = "Disable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
+    @PluginProperty(title = "Enable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     Boolean validateSsl;
 

@@ -3,7 +3,7 @@ plugins {
     id 'groovy'
 
 }
-ext.rundeckVersion='5.11.1-20250415'
+ext.rundeckVersion='5.14.0-20250804'
 defaultTasks 'clean','build'
 apply plugin: 'java'
 apply plugin: 'idea'

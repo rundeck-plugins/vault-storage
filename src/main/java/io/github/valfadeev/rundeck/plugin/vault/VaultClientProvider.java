@@ -238,6 +238,19 @@ class VaultClientProvider {
                 }
                 break;
 
+            case CERT:
+                final String configured = configuration.getProperty(VAULT_CERT_AUTH_MOUNT);
+                final String mount = (configured == null || configured.isEmpty()) ? "cert" : configured;
+                try {
+                    authToken = vaultAuth.loginByCert(mount).getAuthClientToken();
+
+                } catch (VaultException e) {
+                    throw new ConfigurationException(
+                            String.format("Encountered error while authenticating with %s at mount '%s': %s",
+                                    vaultAuthBackend, mount, e.getLocalizedMessage()));
+                }
+                break;
+
             default:
                 throw new ConfigurationException(
                         String.format("Unsupported auth backend: %s", vaultAuthBackend));

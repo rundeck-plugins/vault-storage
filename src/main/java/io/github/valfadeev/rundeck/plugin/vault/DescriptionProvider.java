@@ -51,6 +51,11 @@ class DescriptionProvider {
                                 USERPASS)
                 )
                 .property(PropertyBuilder.builder()
+                        .string(VAULT_CERT_AUTH_MOUNT)
+                        .title("Cert Auth Mount")
+                        .description("Vault cert auth mount path (e.g., 'tls-auth'). Optional; defaults to 'cert'.")
+                )
+                .property(PropertyBuilder.builder()
                         .string(VAULT_KEY_STORE_FILE)
                         .title("Key store file")
                         .description("A Java keystore, containing a client certificate "

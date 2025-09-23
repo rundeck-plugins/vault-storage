@@ -13,7 +13,11 @@ import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException;
 import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
 import static io.github.valfadeev.rundeck.plugin.vault.SupportedAuthBackends.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 class VaultClientProvider {
+    private static final Logger LOG = LoggerFactory.getLogger(VaultClientProvider.class);
 
     private Properties configuration;
 
@@ -22,6 +26,7 @@ class VaultClientProvider {
     }
 
     Vault getVaultClient() throws ConfigurationException {
+        LOG.error("[vault] getVaultClient(): start, address='{}'", configuration.getProperty(VAULT_ADDRESS));
         final Integer vaultMaxRetries = Integer.parseInt(configuration.getProperty(VAULT_MAX_RETRIES));
         final Integer vaultRetryIntervalMilliseconds = Integer.parseInt(configuration.getProperty(VAULT_RETRY_INTERVAL_MILLISECONDS));
         final Integer vaultEngineVersion = Integer.parseInt(configuration.getProperty(VAULT_ENGINE_VERSION));
@@ -30,11 +35,15 @@ class VaultClientProvider {
 
         try {
             String authToken = getVaultAuthToken();
+            LOG.error("[vault] got auth token? {}", (authToken != null && !authToken.isEmpty()));
             vaultConfig.token(authToken).build();
+            LOG.error("[vault] building Vault client with engineVersion={} retries={} interval={}ms",
+                    vaultEngineVersion, vaultMaxRetries, vaultRetryIntervalMilliseconds);
             return new Vault(vaultConfig, vaultEngineVersion)
                     .withRetries(vaultMaxRetries,
                             vaultRetryIntervalMilliseconds);
         } catch (VaultException e) {
+            LOG.error("[vault] getVaultClient(): VaultException: {}", e.getMessage(), e);
             throw new ConfigurationException(String.format("Encountered error while "
                     + "building Vault configuration: %s", e.getMessage()));
         }
@@ -58,11 +67,13 @@ class VaultClientProvider {
             try {
                 vaultConfig.nameSpace(nameSpace);
             } catch (VaultException e) {
+                LOG.error("[vault] error building namespace configuration: {}", e.getMessage(), e);
                 throw new ConfigurationException(
                         String.format("Encountered error while building namespace configuration: %s", e.getMessage()));
             }
         }
 
+        LOG.error("[vault] built VaultConfig for address='{}', namespace='{}'", vaultAddress, nameSpace);
         return vaultConfig;
     }
 
@@ -71,26 +82,28 @@ class VaultClientProvider {
 
         final Boolean vaultVerifySsl = Boolean.parseBoolean(configuration.getProperty(VAULT_VERIFY_SSL));
         sslConfig.verify(vaultVerifySsl);
+        LOG.error("[vault] SSL verify={}", vaultVerifySsl);
 
         final String vaultTrustStoreFile = configuration.getProperty(VAULT_TRUST_STORE_FILE);
         if (vaultTrustStoreFile != null) {
             try {
+                LOG.error("[vault] using trustStoreFile={}", vaultTrustStoreFile);
                 sslConfig.trustStoreFile(new File(vaultTrustStoreFile));
             } catch (VaultException e) {
+                LOG.error("[vault] error setting trustStoreFile: {}", e.getMessage(), e);
                 throw new ConfigurationException(String.format("Encountered error while building ssl configuration: %s", e.getMessage()));
             }
         } else  {
             final String vaultPemFile = configuration.getProperty(VAULT_PEM_FILE);
             if (vaultPemFile != null) {
                 try {
+                    LOG.error("[vault] using pemFile={}", vaultPemFile);
                     sslConfig.pemFile(new File(vaultPemFile));
                 }
                 catch (VaultException e) {
+                    LOG.error("[vault] error setting pemFile: {}", e.getMessage(), e);
                     throw new ConfigurationException(
-                            String.format("Encountered error while building "
-                                            + "ssl configuration: %s",
-                                    e.getMessage())
-                    );
+                            String.format("Encountered error while building ssl configuration: %s", e.getMessage()));
                 }
             }
         }
@@ -100,8 +113,10 @@ class VaultClientProvider {
             final String vaultKeyStoreFilePassword = configuration.getProperty(VAULT_KEY_STORE_FILE_PASSWORD);
             if (vaultKeyStoreFile != null && vaultKeyStoreFilePassword != null) {
                 try {
+                    LOG.error("[vault] using keyStoreFile={}", vaultKeyStoreFile);
                     sslConfig.keyStoreFile(new File(vaultKeyStoreFile), vaultKeyStoreFilePassword);
                 } catch (VaultException e) {
+                    LOG.error("[vault] error setting keyStoreFile: {}", e.getMessage(), e);
                     throw new ConfigurationException(String.format("Encountered error while building ssl configuration: %s", e.getMessage()));
                 }
             } else {
@@ -109,9 +124,12 @@ class VaultClientProvider {
                 final String vaultClientKeyPemFile = configuration.getProperty(VAULT_CLIENT_KEY_PEM_FILE);
                 if (vaultClientPemFile != null && vaultClientKeyPemFile != null) {
                     try {
+                        LOG.error("[vault] using clientPemFile={} clientKeyPemFile={}",
+                                vaultClientPemFile, vaultClientKeyPemFile);
                         sslConfig.clientPemFile(new File(vaultClientPemFile))
                                 .clientKeyPemFile(new File(vaultClientKeyPemFile));
                     } catch (VaultException e) {
+                        LOG.error("[vault] error setting client cert/key: {}", e.getMessage(), e);
                         throw new ConfigurationException(String.format("Encountered error while building ssl configuration: %s", e.getMessage()));
                     }
                 }
@@ -121,9 +139,11 @@ class VaultClientProvider {
         try {
             sslConfig.build();
         } catch (VaultException e) {
+            LOG.error("[vault] error building SslConfig: {}", e.getMessage(), e);
             throw new ConfigurationException(String.format("Encountered error while building ssl configuration: %s", e.getMessage()));
         }
 
+        LOG.error("[vault] built SslConfig successfully");
         return sslConfig;
     }
 
@@ -131,19 +151,18 @@ class VaultClientProvider {
         final String vaultAuthBackend = configuration.getProperty(VAULT_AUTH_BACKEND);
         final String vaultAuthNameSpace = configuration.getProperty(VAULT_AUTH_NAMESPACE);
 
+        LOG.error("[vault] getVaultAuthToken(): backend='{}', authNamespace='{}'",
+                vaultAuthBackend, vaultAuthNameSpace);
+
         final String authToken;
         final String msg = "Must specify %s when auth backend is %s";
 
         if (vaultAuthBackend.equals(TOKEN)) {
+            LOG.error("[vault] auth=TOKEN");
             authToken = configuration.getProperty(VAULT_TOKEN);
             if (authToken == null) {
-                throw new ConfigurationException(
-                        String.format(
-                                msg,
-                                VAULT_TOKEN,
-                                vaultAuthBackend
-                        )
-                );
+                LOG.error("[vault] missing token for TOKEN backend");
+                throw new ConfigurationException(String.format(msg, VAULT_TOKEN, vaultAuthBackend));
             }
             return authToken;
         }
@@ -158,20 +177,18 @@ class VaultClientProvider {
         switch (vaultAuthBackend) {
 
             case APPROLE:
+                LOG.error("[vault] auth=APPROLE");
                 final String vaultApproleId = configuration.getProperty(VAULT_APPROLE_ID);
                 final String vaultApproleSecretId = configuration.getProperty(VAULT_APPROLE_SECRET_ID);
                 final String vaultApproleAuthMount = configuration.getProperty(VAULT_APPROLE_AUTH_MOUNT);
 
                 if (vaultApproleId == null || vaultApproleSecretId == null) {
+                    LOG.error("[vault] missing AppRole id/secret");
                     throw new ConfigurationException(
-                            String.format(
-                                    msg,
+                            String.format(msg,
                                     String.join(", ",
-                                            new String[]{VAULT_APPROLE_ID,
-                                                    VAULT_APPROLE_SECRET_ID}),
-                                    vaultAuthBackend
-                            )
-                    );
+                                            new String[]{VAULT_APPROLE_ID, VAULT_APPROLE_SECRET_ID}),
+                                    vaultAuthBackend));
                 }
 
                 try {
@@ -179,83 +196,82 @@ class VaultClientProvider {
                             vaultApproleAuthMount,
                             vaultApproleId,
                             vaultApproleSecretId).getAuthClientToken();
-
+                    LOG.error("[vault] AppRole login success? {}", (authToken != null));
                 } catch (VaultException e) {
-                    throw new ConfigurationException(
-                            String.format("Encountered error while authenticating with %s: %s", vaultAuthBackend, e.getLocalizedMessage())
-                    );
+                    LOG.error("[vault] AppRole login failed: {}", e.getMessage(), e);
+                    throw new ConfigurationException(String.format("Encountered error while authenticating with %s: %s",
+                            vaultAuthBackend, e.getLocalizedMessage()));
                 }
                 break;
 
             case GITHUB:
+                LOG.error("[vault] auth=GITHUB");
                 final String vaultGithubToken = configuration.getProperty(VAULT_GITHUB_TOKEN);
                 if (vaultGithubToken == null) {
+                    LOG.error("[vault] missing github token");
                     throw new ConfigurationException(
-                            String.format(msg,
-                                    VAULT_GITHUB_TOKEN,
-                                    vaultAuthBackend
-                            )
-                    );
+                            String.format(msg, VAULT_GITHUB_TOKEN, vaultAuthBackend));
                 }
 
                 try {
-                    authToken = vaultAuth
-                            .loginByGithub(vaultGithubToken)
-                            .getAuthClientToken();
-
+                    authToken = vaultAuth.loginByGithub(vaultGithubToken).getAuthClientToken();
+                    LOG.error("[vault] GitHub login success? {}", (authToken != null));
                 } catch (VaultException e) {
-                    throw new ConfigurationException(
-                            String.format("Encountered error while authenticating with %s",
-                                    vaultAuthBackend)
-                    );
+                    LOG.error("[vault] GitHub login failed: {}", e.getMessage(), e);
+                    throw new ConfigurationException(String.format("Encountered error while authenticating with %s",
+                            vaultAuthBackend));
                 }
                 break;
 
             case USERPASS:
+                LOG.error("[vault] auth=USERPASS");
                 final String vaultUserpassAuthMount = configuration.getProperty(VAULT_USERPASS_AUTH_MOUNT);
                 final String vaultUsername = configuration.getProperty(VAULT_USERNAME);
                 final String vaultPassword = configuration.getProperty(VAULT_PASSWORD);
                 if (vaultUsername == null || vaultPassword == null) {
+                    LOG.error("[vault] missing user/password");
                     throw new ConfigurationException(
                             String.format(msg,
                                     String.join(", ",
                                             new String[]{VAULT_USERNAME, VAULT_PASSWORD}),
-                                    vaultAuthBackend
-                            )
-                    );
+                                    vaultAuthBackend));
                 }
 
                 try {
-                    authToken = vaultAuth
-                            .loginByUserPass(vaultUsername, vaultPassword, vaultUserpassAuthMount)
+                    authToken = vaultAuth.loginByUserPass(vaultUsername, vaultPassword, vaultUserpassAuthMount)
                             .getAuthClientToken();
-
+                    LOG.error("[vault] UserPass login success? {}", (authToken != null));
                 } catch (VaultException e) {
-                    throw new ConfigurationException(
-                            String.format("Encountered error while authenticating with %s",
-                                    vaultAuthBackend)
-                    );
+                    LOG.error("[vault] UserPass login failed: {}", e.getMessage(), e);
+                    throw new ConfigurationException(String.format("Encountered error while authenticating with %s",
+                            vaultAuthBackend));
                 }
                 break;
 
             case CERT:
+                LOG.error("[vault] auth=CERT");
                 final String configured = configuration.getProperty(VAULT_CERT_AUTH_MOUNT);
                 final String mount = (configured == null || configured.isEmpty()) ? "cert" : configured;
                 try {
                     authToken = vaultAuth.loginByCert(mount).getAuthClientToken();
-
+                    if (authToken != null) {
+                        String masked = "***" + authToken.substring(Math.max(0, authToken.length() - 6));
+                        LOG.error("[vault] Cert login success, tokenLen={}, tokenTail={}", authToken.length(), masked);
+                    } else {
+                        LOG.error("[vault] Cert login returned null token");
+                    }
                 } catch (VaultException e) {
-                    throw new ConfigurationException(
-                            String.format("Encountered error while authenticating with %s at mount '%s': %s",
-                                    vaultAuthBackend, mount, e.getLocalizedMessage()));
+                    LOG.error("[vault] Cert login failed: {}", e.getMessage(), e);
+                    throw new ConfigurationException(String.format("Encountered error while authenticating with %s at mount '%s': %s",
+                            vaultAuthBackend, mount, e.getLocalizedMessage()));
                 }
                 break;
 
             default:
-                throw new ConfigurationException(
-                        String.format("Unsupported auth backend: %s", vaultAuthBackend));
-
+                LOG.error("[vault] unsupported auth backend='{}'", vaultAuthBackend);
+                throw new ConfigurationException(String.format("Unsupported auth backend: %s", vaultAuthBackend));
         }
+
         return authToken;
     }
 }

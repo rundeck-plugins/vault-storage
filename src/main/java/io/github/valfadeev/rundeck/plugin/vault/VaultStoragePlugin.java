@@ -63,7 +63,7 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     @PluginProperty(title = "Vault address", description = "Address of the Vault server", defaultValue = "https://localhost:8200")
     @RenderingOptions({
-    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
     })
     String address;
 
@@ -190,6 +190,8 @@ public class VaultStoragePlugin implements StoragePlugin {
         //clone former properties configuration passes to configure method
         if(vaultClient == null || properties.size()==0) {
 
+            log.severe("[vault] getVaultClient(): assembling properties and creating Vault client");
+
             if(secretBackend != null){
                 properties.setProperty(VAULT_SECRET_BACKEND, secretBackend);
             }
@@ -282,11 +284,12 @@ public class VaultStoragePlugin implements StoragePlugin {
             }
 
             guaranteedTokenValidity = calculateGuaranteedTokenValidity(properties);
+            log.severe("[vault] calculated guaranteedTokenValidity(s) = " + guaranteedTokenValidity);
 
             clientProvider = getVaultClientProvider(properties);
             loginVault(clientProvider);
         }
-            return vaultClient;
+        return vaultClient;
 
     }
 
@@ -298,8 +301,8 @@ public class VaultStoragePlugin implements StoragePlugin {
         return Integer.min(
                 Integer.parseInt(configuration.getProperty(VAULT_MAX_RETRIES))
                         * (Integer.parseInt(configuration.getProperty(VAULT_READ_TIMEOUT))
-                            + Integer.parseInt(configuration.getProperty(VAULT_OPEN_TIMEOUT))
-                            + Integer.parseInt(configuration.getProperty(VAULT_RETRY_INTERVAL_MILLISECONDS)) / 1000),
+                        + Integer.parseInt(configuration.getProperty(VAULT_OPEN_TIMEOUT))
+                        + Integer.parseInt(configuration.getProperty(VAULT_RETRY_INTERVAL_MILLISECONDS)) / 1000),
                 MAX_GUARANTEED_VALIDITY_SECONDS
         );
     }
@@ -316,27 +319,34 @@ public class VaultStoragePlugin implements StoragePlugin {
     protected void lookup(){
         try {
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
+            log.severe("[vault] lookup(): ttl=" + lookupSelf.getTTL() + " uses=" + lookupSelf.getNumUses());
             if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
+                log.severe("[vault] lookup(): token near expiry; re-authenticating");
                 loginVault(clientProvider);
             }
         } catch (VaultException e) {
             if(e.getHttpStatusCode() == 403){//try login again
+                log.severe("[vault] lookup(): 403 on lookupSelf; re-authenticating");
                 loginVault(clientProvider);
             } else {
+                log.severe("[vault] lookup(): VaultException: " + e.getMessage());
                 e.printStackTrace();
             }
         } catch (ConfigurationException e) {
+            log.severe("[vault] lookup(): ConfigurationException: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
     private void loginVault(VaultClientProvider provider){
         try{
+            log.severe("[vault] loginVault(): requesting client from provider");
             vaultClient = provider.getVaultClient();
             vault = vaultClient.logical();
+            log.severe("[vault] loginVault(): client obtained and logical() ready");
         }
         catch (Exception ignored){
-
+            log.severe("[vault] loginVault(): exception while obtaining client: " + ignored.getMessage());
         }
     }
 
@@ -345,6 +355,7 @@ public class VaultStoragePlugin implements StoragePlugin {
         try{
             lookup();
             List<String> list = getVaultList(key);
+            log.severe("[vault] isVaultDir('" + key + "'): list size=" + (list == null ? "null" : list.size()));
             if(list.size() > 0){
                 return true;
             }else{
@@ -359,6 +370,7 @@ public class VaultStoragePlugin implements StoragePlugin {
                 return false;
             }
         } catch (VaultException e) {
+            log.severe("[vault] isVaultDir('" + key + "'): VaultException: " + e.getMessage());
             log.info("error:" + e.getMessage());
             return false;
         }
@@ -371,11 +383,13 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     private VaultResponse saveResource(Path path, ResourceMeta content, String event) {
+        log.severe("[vault] saveResource(" + event + "): path='" + path + "'");
         ByteArrayOutputStream baoStream = new ByteArrayOutputStream();
         try {
             content.writeContent(baoStream);
         }
         catch (IOException e) {
+            log.severe("[vault] saveResource(" + event + "): IOException: " + e.getMessage());
             throw new StorageException(
                     String.format("Encountered error while extracting "
                                     + "resource content: %s",
@@ -384,59 +398,69 @@ public class VaultStoragePlugin implements StoragePlugin {
                     path);
         }
 
-
         KeyObject object;
         if(event.equals("create")){
-           if(rundeckObject){
-               object=new RundeckKey(path);
-           }else{
-               object=new VaultKey(path,null);
-           }
+            if(rundeckObject){
+                object=new RundeckKey(path);
+            }else{
+                object=new VaultKey(path,null);
+            }
         }else{
-           object = this.getVaultObject(path);
+            object = this.getVaultObject(path);
         }
 
         Map<String, Object> payload=object.saveResource(content,event,baoStream);
 
         try {
             lookup();
-            return vault.write(getVaultPath(object.getPath().getPath(),secretBackend,prefix), payload);
+            String fullPath = getVaultPath(object.getPath().getPath(),secretBackend,prefix);
+            log.severe("[vault] saveResource(" + event + "): writing to '" + fullPath + "'");
+            VaultResponse resp = vault.write(fullPath, payload);
+            try {
+                int status = resp.getRestResponse().getStatus();
+                log.severe("[vault] saveResource(" + event + "): write status=" + status);
+            } catch (Exception ignore) {
+                // ignore logging failures
+            }
+            return resp;
         } catch (VaultException e) {
+            log.severe("[vault] saveResource(" + event + "): VaultException: " + e.getMessage());
             throw new StorageException(
                     String.format("Encountered error while writing data to Vault %s",
-                                  e.getMessage()),
+                            e.getMessage()),
                     StorageException.Event.valueOf(event.toUpperCase()),
                     path);
         }
-
-
     }
 
     private Resource<ResourceMeta> loadDir(Path path) {
+        log.severe("[vault] loadDir(): path='" + path + "'");
         return new ResourceBase<>(path, null, true);
     }
 
     private Resource<ResourceMeta> loadResource(Path path, String event) {
+        log.severe("[vault] loadResource(" + event + "): path='" + path + "'");
         KeyObject object = this.getVaultObject(path);
         return loadResource(object,event);
     }
 
     private Resource<ResourceMeta> loadResource(KeyObject object, String event) {
+        log.severe("[vault] loadResource(" + event + "): objPath='" + object.getPath() + "', rundeckObj=" + object.isRundeckObject());
 
         if(object.isError()){
+            log.severe("[vault] loadResource(" + event + "): KeyObject error: " + object.getErrorMessage());
             throw new StorageException(
                     String.format("Encountered error while reading data from Vault %s",
-                                  object.getErrorMessage()),
+                            object.getErrorMessage()),
                     StorageException.Event.valueOf(event.toUpperCase()),
                     object.getPath());
         }
 
         return object.loadResource();
-
-
     }
 
     private Set<Resource<ResourceMeta>> listResources(Path path, KeyType type) {
+        log.severe("[vault] listResources(): path='" + path + "', type=" + type);
         List<String> response;
 
         try {
@@ -444,6 +468,7 @@ public class VaultStoragePlugin implements StoragePlugin {
             response = getVaultList(path);
 
         } catch (VaultException e) {
+            log.severe("[vault] listResources(): VaultException: " + e.getMessage());
             throw StorageException.listException(
                     path,
                     String.format("Encountered error while reading data from Vault %s",
@@ -485,7 +510,7 @@ public class VaultStoragePlugin implements StoragePlugin {
                 if(rundeckObject){
                     //normal case with rundeck format
                     if(object.isRundeckObject()){
-                         resource = loadResource(object,"list");
+                        resource = loadResource(object,"list");
                     }
                 }else{
                     //vault key/value format
@@ -511,6 +536,7 @@ public class VaultStoragePlugin implements StoragePlugin {
 
         }
 
+        log.severe("[vault] listResources(): returning " + resources.size() + " items");
         return resources;
     }
 
@@ -520,6 +546,7 @@ public class VaultStoragePlugin implements StoragePlugin {
             lookup();
 
             List<String> list = getVaultList(path);
+            log.severe("[vault] hasPath('" + path + "'): list size=" + (list == null ? "null" : list.size()));
             if(list.size() > 0){
                 return true;
             }
@@ -532,6 +559,7 @@ public class VaultStoragePlugin implements StoragePlugin {
             //check if the path is a key
             return hasResource(path);
         } catch (VaultException e) {
+            log.severe("[vault] hasPath('" + path + "'): VaultException: " + e.getMessage());
             return false;
         }
     }
@@ -546,6 +574,7 @@ public class VaultStoragePlugin implements StoragePlugin {
         KeyObject object=getVaultObject(path);
 
         if(object.isError()){
+            log.severe("[vault] hasResource('" + path + "'): KeyObject error=" + object.getErrorMessage());
             return false;
         }else{
             return true;
@@ -563,6 +592,7 @@ public class VaultStoragePlugin implements StoragePlugin {
             lookup();
 
             List<String> list=getVaultList(path);
+            log.severe("[vault] hasDirectory('" + path + "'): list size=" + (list == null ? "null" : list.size()));
 
             if(list.size() > 0){
                 return list.size() > 0;
@@ -576,6 +606,7 @@ public class VaultStoragePlugin implements StoragePlugin {
             return false;
 
         } catch (VaultException e) {
+            log.severe("[vault] hasDirectory('" + path + "'): VaultException: " + e.getMessage());
             return false;
         }
     }
@@ -642,6 +673,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     @Override
     public boolean deleteResource(Path path) {
         KeyObject object = this.getVaultObject(path);
+        log.severe("[vault] deleteResource(): path='" + path + "'");
         return object.delete(vault,secretBackend,prefix);
     }
 
@@ -675,11 +707,11 @@ public class VaultStoragePlugin implements StoragePlugin {
     public KeyObject getVaultObject(Path path){
         lookup();
         KeyObject value= KeyObjectBuilder.builder()
-                                .path(path)
-                                .vault(vault)
-                                .vaultPrefix(prefix)
-                                .vaultSecretBackend(secretBackend)
-                                .build();
+                .path(path)
+                .vault(vault)
+                .vaultPrefix(prefix)
+                .vaultSecretBackend(secretBackend)
+                .build();
 
         return value;
     }
@@ -691,9 +723,18 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     private List<String> getVaultList(String path) throws VaultException {
-        LogicalResponse response = vault.list(getVaultPath(path,secretBackend,prefix));
+        String fullPath = getVaultPath(path,secretBackend,prefix);
+        log.severe("[vault] getVaultList(): listing '" + fullPath + "'");
+        LogicalResponse response = vault.list(fullPath);
+        try {
+            int status = response.getRestResponse().getStatus();
+            log.severe("[vault] getVaultList(): status=" + status);
+        } catch (Exception ignore) {
+            // ignore logging failures
+        }
         if (response.getRestResponse().getStatus()==403){
             String body = new String(response.getRestResponse().getBody());
+            log.severe("[vault] getVaultList(): 403 body=" + body);
             throw StorageException.listException(
                     PathUtil.asPath(path),
                     String.format("Encountered error while reading data from Vault %s",

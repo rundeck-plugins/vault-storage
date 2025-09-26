@@ -3,7 +3,7 @@ package io.github.valfadeev.rundeck.plugin.vault;
 import java.io.InputStream;
 import java.util.Properties;
 
-import com.bettercloud.vault.VaultConfig;
+import io.github.jopenlibs.vault.VaultConfig;
 import org.junit.Test;
 
 import static org.junit.Assert.*;

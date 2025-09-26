@@ -1,6 +1,6 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
-import com.bettercloud.vault.api.Logical;
+import io.github.jopenlibs.vault.api.Logical;
 import com.dtolabs.rundeck.core.storage.ResourceMeta;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.impl.ResourceBase;

@@ -1,11 +1,11 @@
 package id.github.valfadeev.rundeck.plugin.vault
 
-import com.bettercloud.vault.Vault
-import com.bettercloud.vault.api.Auth
-import com.bettercloud.vault.api.Logical
-import com.bettercloud.vault.response.LogicalResponse
-import com.bettercloud.vault.response.LookupResponse
-import com.bettercloud.vault.rest.RestResponse
+import io.github.jopenlibs.vault.Vault
+import io.github.jopenlibs.vault.api.Auth
+import io.github.jopenlibs.vault.api.Logical
+import io.github.jopenlibs.vault.response.LogicalResponse
+import io.github.jopenlibs.vault.response.LookupResponse
+import io.github.jopenlibs.vault.rest.RestResponse
 import io.github.valfadeev.rundeck.plugin.vault.VaultStoragePlugin
 import spock.lang.Specification
 

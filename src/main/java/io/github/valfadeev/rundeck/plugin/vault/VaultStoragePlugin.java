@@ -5,12 +5,12 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.bettercloud.vault.Vault;
-import com.bettercloud.vault.VaultException;
-import com.bettercloud.vault.api.Logical;
-import com.bettercloud.vault.response.LogicalResponse;
-import com.bettercloud.vault.response.LookupResponse;
-import com.bettercloud.vault.response.VaultResponse;
+import io.github.jopenlibs.vault.Vault;
+import io.github.jopenlibs.vault.VaultException;
+import io.github.jopenlibs.vault.api.Logical;
+import io.github.jopenlibs.vault.response.LogicalResponse;
+import io.github.jopenlibs.vault.response.LookupResponse;
+import io.github.jopenlibs.vault.response.VaultResponse;
 import com.dtolabs.rundeck.core.plugins.Plugin;
 import com.dtolabs.rundeck.core.plugins.configuration.*;
 import com.dtolabs.rundeck.core.storage.ResourceMeta;
@@ -122,6 +122,11 @@ public class VaultStoragePlugin implements StoragePlugin {
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     String clientKeyPemFile;
 
+    @PluginProperty(title = "Cert Auth Mount",
+            description = "The mount name of the TLS Certificate authentication back end (e.g., tls-auth). Defaults to 'cert'.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    String certAuthMount;
+
     @PluginProperty(title = "Enable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     Boolean validateSsl;
@@ -219,6 +224,9 @@ public class VaultStoragePlugin implements StoragePlugin {
             }
             if(pemFile != null){
                 properties.setProperty(VAULT_PEM_FILE, pemFile);
+            }
+            if (certAuthMount != null) {
+                properties.setProperty(VAULT_CERT_AUTH_MOUNT, certAuthMount);
             }
             if(clientPemFile != null){
                 properties.setProperty(VAULT_CLIENT_PEM_FILE, clientPemFile);

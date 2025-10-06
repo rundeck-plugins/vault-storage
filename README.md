@@ -83,7 +83,10 @@ rundeck.storage.provider.[index].config.namespace=namespace
 ```
 rundeck.storage.provider.[index].config.authNamespace=namespace
 ```
-
+* **certAuthMount**:  Cert Auth Mount name, The mount name of the TLS Certificate authentication back end for cert authentication.
+```
+rundeck.storage.provider.[index].config.authNamespace=namespace
+```
 
 * **keyStoreFile**: Key store file
 A Java keystore, containing a client certificate that's registered with Vault's TLS Certificate auth backend.
@@ -100,6 +103,10 @@ rundeck.storage.provider.[index].config.keyStoreFilePassword=/path/keyStoreFileP
 ```
 
 * **trustStoreFile**: Truststore file. A JKS truststore file, containing the Vault server's X509 certificate
+```
+rundeck.storage.provider.[index].config.trustStoreFile=/path/trustStoreFile
+```
+* **trustStoreFilePassword**: Truststore file password. The password needed to access the truststore.
 ```
 rundeck.storage.provider.[index].config.trustStoreFile=/path/trustStoreFile
 ```
@@ -244,7 +251,23 @@ curl --header "X-Vault-Token: $TOKEN" http://localhost:8200/v1/auth/approle/role
 curl --header "X-Vault-Token: $TOKEN" --request POST http://localhost:8200/v1/auth/approle/role/rundeck/secret-id | jq
 ```
 
+#### **Using CERT authentication**
 
+```
+rundeck.storage.provider.1.type=vault-storage
+rundeck.storage.provider.1.path=keys
+rundeck.storage.provider.1.config.prefix=app
+rundeck.storage.provider.1.config.address=$VAULT_URL
+rundeck.storage.provider.1.config.authBackend=cert
+rundeck.storage.provider.1.config.secretBackend=kv
+rundeck.storage.provider.1.config.engineVersion=2
+rundeck.storage.provider.1.config.certAuthMount=tls-auth
+rundeck.storage.provider.1.config.keyStoreFile=$KEYSTORE_FILE
+rundeck.storage.provider.1.config.keyStoreFilePassword=$KEYSTORE_PASSWORD
+rundeck.storage.provider.1.config.trustStoreFile=$TRUSTSTORE_FILE
+rundeck.storage.provider.1.config.truststoreFilePassword=$TRUSTSTORE_PASSWORD
+rundeck.storage.provider.1.config.validateSsl=true
+```
 ## Vault API versions
 
 Since version 1.3.1, this plugin can work with `kV Secrets Engine - Version 2`. 

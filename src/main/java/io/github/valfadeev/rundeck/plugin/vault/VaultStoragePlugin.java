@@ -390,7 +390,7 @@ public class VaultStoragePlugin implements StoragePlugin {
         try {
             content.writeContent(baoStream);
         } catch (IOException e) {
-            LOG.error("Failed to extract resource content for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
+            LOG.debug("Failed to extract resource content for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
             throw new StorageException(
                     String.format("Encountered error while extracting "
                                     + "resource content: %s",
@@ -403,27 +403,27 @@ public class VaultStoragePlugin implements StoragePlugin {
         if (event.equals("create")) {
             if (rundeckObject) {
                 object = new RundeckKey(path);
-                LOG.error("Created RundeckKey object for path {} with event {}", path, event);
+                LOG.debug("Created RundeckKey object for path {} with event {}", path, event);
             } else {
                 object = new VaultKey(path, null);
-                LOG.error("Created VaultKey object for path {} with event {}", path, event);
+                LOG.debug("Created VaultKey object for path {} with event {}", path, event);
             }
         } else {
             object = this.getVaultObject(path);
-            LOG.error("Retrieved existing VaultKey object for path {} with event {}", path, event);
+            LOG.debug("Retrieved existing VaultKey object for path {} with event {}", path, event);
         }
 
         Map<String, Object> payload = object.saveResource(content, event, baoStream);
-        LOG.error("Generated payload for path {} with event {}: {}", path, event, payload);
+        LOG.debug("Generated payload for path {} with event {}: {}", path, event, payload);
 
         try {
             lookup();
             String vaultPath = getVaultPath(object.getPath().getPath(), secretBackend, prefix);
-            LOG.error("Writing data to Vault at {} for path {} with event {}", vaultPath, path, event);
+            LOG.debug("Writing data to Vault at {} for path {} with event {}", vaultPath, path, event);
             vault.write(vaultPath, payload);
-            LOG.error("Successfully wrote data to Vault at {} for path {} with event {}", vaultPath, path, event);
+            LOG.debug("Successfully wrote data to Vault at {} for path {} with event {}", vaultPath, path, event);
         } catch (VaultException e) {
-            LOG.error("Failed to write data to Vault for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
+            LOG.debug("Failed to write data to Vault for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
             throw new StorageException(
                     String.format("Encountered error while writing data to Vault %s",
                             e.getMessage()),

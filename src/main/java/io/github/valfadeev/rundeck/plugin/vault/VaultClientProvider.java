@@ -94,7 +94,7 @@ class VaultClientProvider {
                 LOG.debug("[vault] trustStoreFile exists={}, readable={}, size={}",
                         trustFile.exists(), trustFile.canRead(), trustFile.length());
 
-                // NEW: load JKS with password, then provide in-memory KeyStore to the driver
+                // load JKS with password, then provide in-memory KeyStore to the driver
                 try (FileInputStream in = new FileInputStream(trustFile)) {
                     KeyStore ts = KeyStore.getInstance("JKS"); // keep default type
                     if (vaultTrustStoreFilePassword == null) {

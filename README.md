@@ -85,7 +85,7 @@ rundeck.storage.provider.[index].config.authNamespace=namespace
 ```
 * **certAuthMount**:  Cert Auth Mount name, The mount name of the TLS Certificate authentication back end for cert authentication.
 ```
-rundeck.storage.provider.[index].config.authNamespace=namespace
+rundeck.storage.provider.[index].config.certAuthMount=mount-name
 ```
 
 * **keyStoreFile**: Key store file

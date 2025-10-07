@@ -98,7 +98,7 @@ class VaultClientProvider {
                 try (FileInputStream in = new FileInputStream(trustFile)) {
                     KeyStore ts = KeyStore.getInstance("JKS"); // keep default type
                     if (vaultTrustStoreFilePassword == null) {
-                        throw new ConfigurationException("vault.trustStorePassword is required for JKS truststores");
+                        throw new ConfigurationException("vault.trustStoreFilePassword is required for JKS truststores");
                     }
                     ts.load(in, vaultTrustStoreFilePassword.toCharArray());
                     sslConfig.trustStore(ts);

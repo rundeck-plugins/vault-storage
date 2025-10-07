@@ -108,7 +108,7 @@ rundeck.storage.provider.[index].config.trustStoreFile=/path/trustStoreFile
 ```
 * **trustStoreFilePassword**: Truststore file password. The password needed to access the truststore.
 ```
-rundeck.storage.provider.[index].config.trustStoreFile=/path/trustStoreFile
+rundeck.storage.provider.[index].config.trustStoreFilePassword=trustStorePassword
 ```
 
 * **pemFile**: PEM file. The path of a file containing an X.509 certificate, in unencrypted PEM format with UTF-8 encoding.

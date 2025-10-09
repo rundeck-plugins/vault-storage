@@ -5,8 +5,6 @@ import com.dtolabs.rundeck.plugins.util.DescriptionBuilder;
 import com.dtolabs.rundeck.plugins.util.PropertyBuilder;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 import static io.github.valfadeev.rundeck.plugin.vault.SupportedAuthBackends.*;
 import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
@@ -67,6 +65,16 @@ class DescriptionProvider {
                         .title("Truststore file")
                         .description("A JKS truststore file, containing the Vault "
                                 + "server's X509 certificate")
+                )
+                .property(PropertyBuilder.builder()
+                        .string(VAULT_TRUST_STORE_FILE_PASSWORD)
+                        .title("Truststore file password")
+                        .description("The password needed to access the truststore")
+                )
+                .property(PropertyBuilder.builder()
+                        .string(VAULT_CERT_AUTH_MOUNT)
+                        .title("Cert Auth Mount name")
+                        .description("The mount name of the TLS Certificate authentication back end")
                 )
                 .property(PropertyBuilder.builder()
                         .string(VAULT_PEM_FILE)

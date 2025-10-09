@@ -1,10 +1,42 @@
-*.iml
+# IDE/Build files
+.gradle/
 *.ipr
+*.iml
 *.iws
-*.pr
-*.project
-.gradle
-.idea
-build*.iml
+.idea/
 build/
+bin/
 out/
+
+# VS Code
+.vscode/
+
+# Eclipse
+.project
+.classpath
+.settings/
+.metadata/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# System files
+**/.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Log files
+*.log
+
+# Local environment files
+.env
+.env.local

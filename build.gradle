@@ -47,7 +47,7 @@ dependencies {
     // add any third-party jar dependencies you wish to include in the plugin
     // using the `pluginLibs` configuration as shown here:
 
-    pluginLibs group: 'com.bettercloud', name: 'vault-java-driver', version: '5.1.0', ext: 'jar'
+    pluginLibs group: 'io.github.jopenlibs', name: 'vault-java-driver', version: '6.2.0', ext: 'jar'
 
 
     //the compile dependency won't add the rundeck-core jar to the plugin contents

@@ -1,8 +1,8 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
-import com.bettercloud.vault.VaultException;
-import com.bettercloud.vault.api.Logical;
-import com.bettercloud.vault.response.LogicalResponse;
+import io.github.jopenlibs.vault.VaultException;
+import io.github.jopenlibs.vault.api.Logical;
+import io.github.jopenlibs.vault.response.LogicalResponse;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
 

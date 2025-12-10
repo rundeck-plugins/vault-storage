@@ -14,7 +14,12 @@ import org.rundeck.storage.impl.ResourceBase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class VaultKey extends KeyObject {
@@ -146,6 +151,29 @@ public class VaultKey extends KeyObject {
                 builder.setContentType(VaultStoragePlugin.PASSWORD_MIME_TYPE);
                 builder.setMeta(VaultStoragePlugin.RUNDECK_CONTENT_MASK, "content");
                 builder.setMeta(VaultStoragePlugin.RUNDECK_DATA_TYPE, "password");
+            }
+
+            // Parse and set timestamps from Vault metadata (KV v2)
+            if (this.vaultMetadata != null && !this.vaultMetadata.isEmpty()) {
+                String createdTime = this.vaultMetadata.get("created_time");
+
+                if (createdTime != null && !createdTime.isEmpty()) {
+                    try {
+                        // Vault returns timestamps in RFC3339 format (ISO 8601)
+                        // Example: "2025-03-13T16:25:00.123456Z"
+                        SimpleDateFormat vaultDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH);
+                        Date creationDate = vaultDateFormat.parse(createdTime.substring(0, Math.min(19, createdTime.length())));
+
+                        builder.setCreationTime(creationDate);
+
+                        // Use created_time as modification time if no separate updated_time exists
+                        // In Vault KV v2, there's no separate "updated_time" in metadata,
+                        // so we use created_time for both
+                        builder.setModificationTime(creationDate);
+                    } catch (ParseException e) {
+                        // If parsing fails, timestamps will not be set and will default to relative time
+                    }
+                }
             }
 
             ByteArrayInputStream baiStream = new ByteArrayInputStream(value.getBytes());

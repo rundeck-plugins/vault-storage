@@ -15,6 +15,7 @@ public abstract class KeyObject {
     protected Map<String, String> payload;
     protected Map<String, Object> keys;
     protected Path                path;
+    protected Map<String, String> vaultMetadata;
 
     protected boolean             error;
     protected String              errorMessage;
@@ -84,6 +85,14 @@ public abstract class KeyObject {
         this.error = error;
     }
 
+    public Map<String, String> getVaultMetadata() {
+        return vaultMetadata;
+    }
+
+    public void setVaultMetadata(final Map<String, String> vaultMetadata) {
+        this.vaultMetadata = vaultMetadata;
+    }
+
     @Override
     public String toString() {
         return "KeyObject{" +
@@ -92,6 +101,7 @@ public abstract class KeyObject {
                ", payload=" + payload +
                ", keys=" + keys +
                ", path=" + path +
+               ", vaultMetadata=" + vaultMetadata +
                ", error=" + error +
                ", errorMessage='" + errorMessage + '\'' +
                '}';

@@ -1,9 +1,7 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
 import io.github.jopenlibs.vault.response.LogicalResponse;
-import com.dtolabs.rundeck.core.storage.ResourceMeta;
 import org.junit.Test;
-import org.rundeck.storage.api.ContentMeta;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
 import org.rundeck.storage.impl.ResourceBase;

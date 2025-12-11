@@ -14,15 +14,20 @@ import org.rundeck.storage.impl.ResourceBase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class VaultKey extends KeyObject {
+
+    private static final Logger LOG = LoggerFactory.getLogger(VaultKey.class);
 
     KeyObject parent;
 
@@ -156,22 +161,33 @@ public class VaultKey extends KeyObject {
             // Parse and set timestamps from Vault metadata (KV v2)
             if (this.vaultMetadata != null && !this.vaultMetadata.isEmpty()) {
                 String createdTime = this.vaultMetadata.get("created_time");
+                String updatedTime = this.vaultMetadata.get("updated_time");
 
-                if (createdTime != null && !createdTime.isEmpty()) {
+                // Parse creation time
+                if (createdTime != null && createdTime.length() >= 19) {
                     try {
-                        // Vault returns timestamps in RFC3339 format (ISO 8601)
+                        // Vault returns timestamps in RFC3339 format (ISO 8601) in UTC
                         // Example: "2025-03-13T16:25:00.123456Z"
                         SimpleDateFormat vaultDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH);
-                        Date creationDate = vaultDateFormat.parse(createdTime.substring(0, Math.min(19, createdTime.length())));
+                        vaultDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+                        Date creationDate = vaultDateFormat.parse(createdTime.substring(0, 19));
 
                         builder.setCreationTime(creationDate);
 
-                        // Use created_time as modification time if no separate updated_time exists
-                        // In Vault KV v2, there's no separate "updated_time" in metadata,
-                        // so we use created_time for both
-                        builder.setModificationTime(creationDate);
+                        // Use updated_time for modification time if available, otherwise use created_time
+                        if (updatedTime != null && updatedTime.length() >= 19) {
+                            try {
+                                Date modificationDate = vaultDateFormat.parse(updatedTime.substring(0, 19));
+                                builder.setModificationTime(modificationDate);
+                            } catch (ParseException e) {
+                                LOG.warn("Failed to parse Vault updated_time '{}', falling back to created_time", updatedTime, e);
+                                builder.setModificationTime(creationDate);
+                            }
+                        } else {
+                            builder.setModificationTime(creationDate);
+                        }
                     } catch (ParseException e) {
-                        // If parsing fails, timestamps will not be set and will default to relative time
+                        LOG.warn("Failed to parse Vault created_time '{}', timestamps will not be set", createdTime, e);
                     }
                 }
             }

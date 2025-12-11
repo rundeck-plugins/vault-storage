@@ -55,8 +55,10 @@ public class KeyObjectBuilder {
             }
 
             if(data !=null) {
+                // RundeckKey stores timestamps in its own payload format, doesn't use Vault metadata
                 object = new RundeckKey(response,path);
             }else{
+                // VaultKey uses Vault metadata for timestamps
                 object = new VaultKey(response,path);
                 object.setVaultMetadata(metadata);
             }
@@ -114,7 +116,7 @@ public class KeyObjectBuilder {
                 parentObject.setVaultMetadata(dataMetadata.getMetadataMap());
             }
         } catch (VaultException e) {
-
+            // Parent object doesn't exist, return null - this is expected in some cases
         }
 
         return parentObject;

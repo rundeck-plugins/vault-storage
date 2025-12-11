@@ -49,6 +49,48 @@ public class VaultKeyTest {
     }
 
     @Test
+    public void loadResource_usesUpdatedTimeWhenAvailable() {
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "mypassword");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-03-13T10:00:00.000000Z");
+        metadata.put("updated_time", "2025-03-13T16:00:00.000000Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull(resource);
+        assertNotNull(resource.getContents());
+    }
+
+    @Test
+    public void loadResource_fallsBackToCreatedTimeWhenUpdatedTimeInvalid() {
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "mypassword");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-03-13T10:00:00.000000Z");
+        metadata.put("updated_time", "invalid-timestamp");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull(resource);
+        assertNotNull(resource.getContents());
+    }
+
+    @Test
     public void loadResource_handlesNoMetadataGracefully() {
         // Given: A VaultKey without metadata (backward compatibility)
         Path path = PathUtil.asPath("keys/test-key");

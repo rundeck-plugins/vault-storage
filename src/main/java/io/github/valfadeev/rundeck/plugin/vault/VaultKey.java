@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 public class VaultKey extends KeyObject {
 
     private static final Logger LOG = LoggerFactory.getLogger(VaultKey.class);
+    private static final int RFC3339_DATETIME_PREFIX_LENGTH = 19; // Length of "yyyy-MM-dd'T'HH:mm:ss"
 
     KeyObject parent;
 
@@ -164,20 +165,20 @@ public class VaultKey extends KeyObject {
                 String updatedTime = this.vaultMetadata.get("updated_time");
 
                 // Parse creation time
-                if (createdTime != null && createdTime.length() >= 19) {
+                if (createdTime != null && createdTime.length() >= RFC3339_DATETIME_PREFIX_LENGTH) {
                     try {
                         // Vault returns timestamps in RFC3339 format (ISO 8601) in UTC
                         // Example: "2025-03-13T16:25:00.123456Z"
                         SimpleDateFormat vaultDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH);
                         vaultDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-                        Date creationDate = vaultDateFormat.parse(createdTime.substring(0, 19));
+                        Date creationDate = vaultDateFormat.parse(createdTime.substring(0, RFC3339_DATETIME_PREFIX_LENGTH));
 
                         builder.setCreationTime(creationDate);
 
                         // Use updated_time for modification time if available, otherwise use created_time
-                        if (updatedTime != null && updatedTime.length() >= 19) {
+                        if (updatedTime != null && updatedTime.length() >= RFC3339_DATETIME_PREFIX_LENGTH) {
                             try {
-                                Date modificationDate = vaultDateFormat.parse(updatedTime.substring(0, 19));
+                                Date modificationDate = vaultDateFormat.parse(updatedTime.substring(0, RFC3339_DATETIME_PREFIX_LENGTH));
                                 builder.setModificationTime(modificationDate);
                             } catch (ParseException e) {
                                 LOG.warn("Failed to parse Vault updated_time '{}', falling back to created_time", updatedTime, e);

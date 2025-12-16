@@ -16,6 +16,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
@@ -63,6 +65,70 @@ public class VaultKey extends KeyObject {
         this.keys = new HashMap<>();
         keys.put(item,value);
 
+    }
+
+    /**
+     * Parses a timestamp string with multiple fallback strategies to handle various formats.
+     * This method is designed to be resilient to future format changes from Vault.
+     *
+     * @param timestamp The timestamp string to parse
+     * @param fieldName The field name (for logging purposes)
+     * @return A Date object, or null if parsing fails with all strategies
+     */
+    private Date parseTimestampWithFallback(String timestamp, String fieldName) {
+        if (timestamp == null || timestamp.isEmpty()) {
+            return null;
+        }
+
+        // Try parsing as RFC3339/ISO 8601 using Java 8+ Instant (most robust)
+        // This handles formats like: "2025-03-13T16:25:00.123456Z", "2025-03-13T16:25:00Z", etc.
+        try {
+            Instant instant = Instant.parse(timestamp);
+            LOG.debug("Successfully parsed {} using Instant.parse()", fieldName);
+            return Date.from(instant);
+        } catch (DateTimeParseException e) {
+            LOG.debug("Failed to parse {} '{}' with Instant.parse(), trying fallback strategies", fieldName, timestamp);
+        }
+
+        // Try parsing with SimpleDateFormat including fractional seconds
+        // Handles: "2025-03-13T16:25:00.123456Z"
+        try {
+            SimpleDateFormat formatWithFractional = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", Locale.ENGLISH);
+            formatWithFractional.setTimeZone(TimeZone.getTimeZone("UTC"));
+            LOG.debug("Successfully parsed {} using SimpleDateFormat with fractional seconds", fieldName);
+            return formatWithFractional.parse(timestamp);
+        } catch (ParseException e) {
+            LOG.debug("Failed to parse {} with fractional seconds pattern", fieldName);
+        }
+
+        // Try parsing with SimpleDateFormat for milliseconds
+        // Handles: "2025-03-13T16:25:00.123Z"
+        try {
+            SimpleDateFormat formatWithMillis = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ENGLISH);
+            formatWithMillis.setTimeZone(TimeZone.getTimeZone("UTC"));
+            LOG.debug("Successfully parsed {} using SimpleDateFormat with milliseconds", fieldName);
+            return formatWithMillis.parse(timestamp);
+        } catch (ParseException e) {
+            LOG.debug("Failed to parse {} with milliseconds pattern", fieldName);
+        }
+
+        // Try substring approach (original implementation)
+        // Handles: Any format with at least "yyyy-MM-ddTHH:mm:ss" prefix
+        if (timestamp.length() >= RFC3339_DATETIME_PREFIX_LENGTH) {
+            try {
+                SimpleDateFormat vaultDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH);
+                vaultDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+                Date parsed = vaultDateFormat.parse(timestamp.substring(0, RFC3339_DATETIME_PREFIX_LENGTH));
+                LOG.debug("Successfully parsed {} using substring strategy", fieldName);
+                return parsed;
+            } catch (ParseException e) {
+                LOG.debug("Failed to parse {} with substring strategy", fieldName);
+            }
+        }
+
+        // All strategies failed
+        LOG.warn("Failed to parse {} '{}' with all available strategies", fieldName, timestamp);
+        return null;
     }
 
     public Map<String, Object> saveResource(ResourceMeta content, String event, ByteArrayOutputStream baoStream){
@@ -164,31 +230,19 @@ public class VaultKey extends KeyObject {
                 String createdTime = this.vaultMetadata.get("created_time");
                 String updatedTime = this.vaultMetadata.get("updated_time");
 
-                // Parse creation time
-                if (createdTime != null && createdTime.length() >= RFC3339_DATETIME_PREFIX_LENGTH) {
-                    try {
-                        // Vault returns timestamps in RFC3339 format (ISO 8601) in UTC
-                        // Example: "2025-03-13T16:25:00.123456Z"
-                        SimpleDateFormat vaultDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH);
-                        vaultDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-                        Date creationDate = vaultDateFormat.parse(createdTime.substring(0, RFC3339_DATETIME_PREFIX_LENGTH));
+                // Parse creation time with fallback strategies
+                Date creationDate = parseTimestampWithFallback(createdTime, "created_time");
 
-                        builder.setCreationTime(creationDate);
+                if (creationDate != null) {
+                    builder.setCreationTime(creationDate);
 
-                        // Use updated_time for modification time if available, otherwise use created_time
-                        if (updatedTime != null && updatedTime.length() >= RFC3339_DATETIME_PREFIX_LENGTH) {
-                            try {
-                                Date modificationDate = vaultDateFormat.parse(updatedTime.substring(0, RFC3339_DATETIME_PREFIX_LENGTH));
-                                builder.setModificationTime(modificationDate);
-                            } catch (ParseException e) {
-                                LOG.warn("Failed to parse Vault updated_time '{}', falling back to created_time", updatedTime, e);
-                                builder.setModificationTime(creationDate);
-                            }
-                        } else {
-                            builder.setModificationTime(creationDate);
-                        }
-                    } catch (ParseException e) {
-                        LOG.warn("Failed to parse Vault created_time '{}', timestamps will not be set", createdTime, e);
+                    // Use updated_time for modification time if available, otherwise use created_time
+                    Date modificationDate = parseTimestampWithFallback(updatedTime, "updated_time");
+                    if (modificationDate != null) {
+                        builder.setModificationTime(modificationDate);
+                    } else {
+                        // Fall back to creation time if updated_time is missing or unparseable
+                        builder.setModificationTime(creationDate);
                     }
                 }
             }

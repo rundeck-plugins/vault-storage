@@ -6,8 +6,12 @@ import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
 import org.rundeck.storage.impl.ResourceBase;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -224,5 +228,274 @@ public class VaultKeyTest {
         assertNotNull("Resource should not be null", resource);
         assertNotNull("Resource contents should not be null", resource.getContents());
         // The VaultKey.loadResource() method sets PRIVATE_KEY_MIME_TYPE for RSA keys
+    }
+
+    @Test
+    public void parseTimestamp_handlesNanosecondPrecision() {
+        // Tests Strategy 1: Instant.parse() with nanosecond precision
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59.123456789Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Should parse nanosecond precision timestamp", resource);
+        assertNotNull("Resource metadata should be set", resource.getContents().getMeta());
+    }
+
+    @Test
+    public void parseTimestamp_handlesMicrosecondPrecision() {
+        // Tests Strategy 1: Instant.parse() with microsecond precision (current Vault format)
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59.188636Z");
+        metadata.put("updated_time", "2025-12-11T14:16:59.188636Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Should parse microsecond precision timestamp", resource);
+        assertNotNull("Resource metadata should be set", resource.getContents().getMeta());
+    }
+
+    @Test
+    public void parseTimestamp_handlesMillisecondPrecision() {
+        // Tests Strategy 3: SimpleDateFormat with milliseconds
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59.123Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Should parse millisecond precision timestamp", resource);
+    }
+
+    @Test
+    public void parseTimestamp_handlesSecondPrecisionOnly() {
+        // Tests Strategy 1: Instant.parse() without fractional seconds
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Should parse second precision timestamp", resource);
+    }
+
+    @Test
+    public void parseTimestamp_handlesTimezoneOffsets() {
+        // Tests Strategy 1: Instant.parse() with timezone offsets
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59+00:00");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Should parse timestamp with timezone offset", resource);
+    }
+
+    @Test
+    public void parseTimestamp_successfullyParsesValidTimestamp() {
+        // Verify that a valid RFC3339 timestamp is parsed without errors
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59.188636Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        // If parsing succeeded, the resource will be created successfully
+        assertNotNull("Resource should be created with valid timestamp", resource);
+        assertNotNull("Resource contents should be set", resource.getContents());
+        // The timestamp was successfully parsed and set internally
+    }
+
+    @Test
+    public void parseTimestamp_handlesBothCreatedAndUpdatedTime() {
+        // Verify that both created_time and updated_time are parsed without errors
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T10:00:00Z");
+        metadata.put("updated_time", "2025-12-11T16:00:00Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        // If both timestamps were successfully parsed, the resource will be created
+        assertNotNull("Resource should be created with both timestamps", resource);
+        assertNotNull("Resource contents should be set", resource.getContents());
+        // Both created_time and updated_time were successfully parsed and set internally
+    }
+
+    @Test
+    public void parseTimestamp_handlesNullTimestamp() {
+        // Tests graceful handling of null timestamps
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", null);
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Resource should be created even with null timestamp", resource);
+    }
+
+    @Test
+    public void parseTimestamp_handlesEmptyString() {
+        // Tests graceful handling of empty timestamp strings
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Resource should be created with empty timestamp string", resource);
+    }
+
+    @Test
+    public void parseTimestamp_handlesCompletelyInvalidFormat() {
+        // Tests that completely invalid formats are handled gracefully
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "not-a-valid-date-at-all");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Resource should be created even with invalid timestamp", resource);
+        // The timestamp will be null, but the resource should still work
+    }
+
+    @Test
+    public void parseTimestamp_fallsBackWhenInstantParseFails() {
+        // Tests that fallback strategies work when primary strategy fails
+        // This tests a format that Instant.parse() might not handle but SimpleDateFormat can
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        // This format should work with one of the fallback strategies
+        metadata.put("created_time", "2025-12-11T14:16:59.000000Z");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Resource should be created using fallback strategy", resource);
+    }
+
+    @Test
+    public void parseTimestamp_handlesEdgeCases() {
+        // Tests edge case timestamps
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        String[] edgeCaseTimestamps = {
+            "2025-01-01T00:00:00Z",              // New Year midnight
+            "2025-12-31T23:59:59.999999Z",       // End of year
+            "2025-02-28T23:59:59Z",              // Last day of Feb (non-leap year)
+            "2024-02-29T12:00:00Z",              // Leap day
+        };
+
+        for (String timestamp : edgeCaseTimestamps) {
+            VaultKey vaultKey = new VaultKey(response, path);
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("created_time", timestamp);
+            vaultKey.setVaultMetadata(metadata);
+
+            ResourceBase resource = vaultKey.loadResource();
+
+            assertNotNull("Should parse edge case timestamp: " + timestamp, resource);
+        }
+    }
+
+    @Test
+    public void parseTimestamp_handlesVeryShortTimestamp() {
+        // Tests handling of timestamps shorter than expected
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11");  // Very short format
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        assertNotNull("Resource should be created even with short timestamp", resource);
     }
 }

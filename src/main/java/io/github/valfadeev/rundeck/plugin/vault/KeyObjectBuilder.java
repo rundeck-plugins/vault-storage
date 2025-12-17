@@ -3,8 +3,10 @@ package io.github.valfadeev.rundeck.plugin.vault;
 import io.github.jopenlibs.vault.VaultException;
 import io.github.jopenlibs.vault.api.Logical;
 import io.github.jopenlibs.vault.response.LogicalResponse;
+import io.github.jopenlibs.vault.response.DataMetadata;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
+import java.util.Map;
 
 public class KeyObjectBuilder {
 
@@ -45,10 +47,20 @@ public class KeyObjectBuilder {
             response = vault.read(VaultStoragePlugin.getVaultPath(path.getPath(),vaultSecretBackend,vaultPrefix));
             String data = response.getData().get(VaultStoragePlugin.VAULT_STORAGE_KEY);
 
+            // Extract metadata from response for KV v2
+            Map<String, String> metadata = null;
+            DataMetadata dataMetadata = response.getDataMetadata();
+            if (dataMetadata != null && !dataMetadata.isEmpty()) {
+                metadata = dataMetadata.getMetadataMap();
+            }
+
             if(data !=null) {
+                // RundeckKey stores timestamps in its own payload format, doesn't use Vault metadata
                 object = new RundeckKey(response,path);
             }else{
+                // VaultKey uses Vault metadata for timestamps
                 object = new VaultKey(response,path);
+                object.setVaultMetadata(metadata);
             }
 
             if(response.getRestResponse().getStatus()!=200){
@@ -97,8 +109,14 @@ public class KeyObjectBuilder {
             }
 
             parentObject=new VaultKey(response, parentPath);
-        } catch (VaultException e) {
 
+            // Extract metadata for parent object too
+            DataMetadata dataMetadata = response.getDataMetadata();
+            if (dataMetadata != null && !dataMetadata.isEmpty()) {
+                parentObject.setVaultMetadata(dataMetadata.getMetadataMap());
+            }
+        } catch (VaultException e) {
+            // Parent object doesn't exist, return null - this is expected in some cases
         }
 
         return parentObject;

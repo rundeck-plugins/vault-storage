@@ -14,10 +14,23 @@ import org.rundeck.storage.impl.ResourceBase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class VaultKey extends KeyObject {
+
+    private static final Logger LOG = LoggerFactory.getLogger(VaultKey.class);
+    private static final int RFC3339_DATETIME_PREFIX_LENGTH = 19; // Length of "yyyy-MM-dd'T'HH:mm:ss"
 
     KeyObject parent;
 
@@ -52,6 +65,70 @@ public class VaultKey extends KeyObject {
         this.keys = new HashMap<>();
         keys.put(item,value);
 
+    }
+
+    /**
+     * Parses a timestamp string with multiple fallback strategies to handle various formats.
+     * This method is designed to be resilient to future format changes from Vault.
+     *
+     * @param timestamp The timestamp string to parse
+     * @param fieldName The field name (for logging purposes)
+     * @return A Date object, or null if parsing fails with all strategies
+     */
+    private Date parseTimestampWithFallback(String timestamp, String fieldName) {
+        if (timestamp == null || timestamp.isEmpty()) {
+            return null;
+        }
+
+        // Try parsing as RFC3339/ISO 8601 using Java 8+ Instant (most robust)
+        // This handles formats like: "2025-03-13T16:25:00.123456Z", "2025-03-13T16:25:00Z", etc.
+        try {
+            Instant instant = Instant.parse(timestamp);
+            LOG.debug("Successfully parsed {} using Instant.parse()", fieldName);
+            return Date.from(instant);
+        } catch (DateTimeParseException e) {
+            LOG.debug("Failed to parse {} '{}' with Instant.parse(), trying fallback strategies", fieldName, timestamp);
+        }
+
+        // Try parsing with SimpleDateFormat including fractional seconds
+        // Handles: "2025-03-13T16:25:00.123456Z"
+        try {
+            SimpleDateFormat formatWithFractional = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", Locale.ENGLISH);
+            formatWithFractional.setTimeZone(TimeZone.getTimeZone("UTC"));
+            LOG.debug("Successfully parsed {} using SimpleDateFormat with fractional seconds", fieldName);
+            return formatWithFractional.parse(timestamp);
+        } catch (ParseException e) {
+            LOG.debug("Failed to parse {} with fractional seconds pattern", fieldName);
+        }
+
+        // Try parsing with SimpleDateFormat for milliseconds
+        // Handles: "2025-03-13T16:25:00.123Z"
+        try {
+            SimpleDateFormat formatWithMillis = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ENGLISH);
+            formatWithMillis.setTimeZone(TimeZone.getTimeZone("UTC"));
+            LOG.debug("Successfully parsed {} using SimpleDateFormat with milliseconds", fieldName);
+            return formatWithMillis.parse(timestamp);
+        } catch (ParseException e) {
+            LOG.debug("Failed to parse {} with milliseconds pattern", fieldName);
+        }
+
+        // Try substring approach (original implementation)
+        // Handles: Any format with at least "yyyy-MM-ddTHH:mm:ss" prefix
+        if (timestamp.length() >= RFC3339_DATETIME_PREFIX_LENGTH) {
+            try {
+                SimpleDateFormat vaultDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH);
+                vaultDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+                Date parsed = vaultDateFormat.parse(timestamp.substring(0, RFC3339_DATETIME_PREFIX_LENGTH));
+                LOG.debug("Successfully parsed {} using substring strategy", fieldName);
+                return parsed;
+            } catch (ParseException e) {
+                LOG.debug("Failed to parse {} with substring strategy", fieldName);
+            }
+        }
+
+        // All strategies failed
+        LOG.warn("Failed to parse {} '{}' with all available strategies", fieldName, timestamp);
+        return null;
     }
 
     public Map<String, Object> saveResource(ResourceMeta content, String event, ByteArrayOutputStream baoStream){
@@ -146,6 +223,28 @@ public class VaultKey extends KeyObject {
                 builder.setContentType(VaultStoragePlugin.PASSWORD_MIME_TYPE);
                 builder.setMeta(VaultStoragePlugin.RUNDECK_CONTENT_MASK, "content");
                 builder.setMeta(VaultStoragePlugin.RUNDECK_DATA_TYPE, "password");
+            }
+
+            // Parse and set timestamps from Vault metadata (KV v2)
+            if (this.vaultMetadata != null && !this.vaultMetadata.isEmpty()) {
+                String createdTime = this.vaultMetadata.get("created_time");
+                String updatedTime = this.vaultMetadata.get("updated_time");
+
+                // Parse creation time with fallback strategies
+                Date creationDate = parseTimestampWithFallback(createdTime, "created_time");
+
+                if (creationDate != null) {
+                    builder.setCreationTime(creationDate);
+
+                    // Use updated_time for modification time if available, otherwise use created_time
+                    Date modificationDate = parseTimestampWithFallback(updatedTime, "updated_time");
+                    if (modificationDate != null) {
+                        builder.setModificationTime(modificationDate);
+                    } else {
+                        // Fall back to creation time if updated_time is missing or unparseable
+                        builder.setModificationTime(creationDate);
+                    }
+                }
             }
 
             ByteArrayInputStream baiStream = new ByteArrayInputStream(value.getBytes());

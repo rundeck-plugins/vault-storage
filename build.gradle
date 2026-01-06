@@ -24,7 +24,7 @@ ext.rundeckPluginVersion= '1.2'
 ext.pluginClassNames='io.github.valfadeev.rundeck.plugin.vault.VaultStoragePlugin'
 
 // Override version for Grails 7 upgrade (bump to 1.3.17)
-project.version = '1.3.18-grails7-upgrade-test'
+project.version = '1.3.19-grails7-upgrade-test'
 
 repositories {
     mavenLocal()

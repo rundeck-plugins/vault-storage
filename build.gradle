@@ -24,7 +24,7 @@ ext.rundeckPluginVersion= '1.2'
 ext.pluginClassNames='io.github.valfadeev.rundeck.plugin.vault.VaultStoragePlugin'
 
 // Override version for Grails 7 upgrade (bump to 1.3.17)
-project.version = '1.3.19-grails7-upgrade-test'
+project.version = '1.3.20-grails7-upgrade-test'
 
 repositories {
     mavenLocal()
@@ -68,7 +68,7 @@ dependencies {
     implementation group: 'org.rundeck', name: 'rundeck-core', version: rundeckVersion
     
     // Add secure commons-lang3 to provide alternative to vulnerable commons-lang 2.6
-    implementation 'org.apache.commons:commons-lang3:3.18.0'
+    implementation 'org.apache.commons:commons-lang3:3.17.0'
     
     testImplementation(
             [group: 'junit', name: 'junit', version: '4.12', ext: 'jar'],
@@ -90,7 +90,7 @@ configurations.all {
     resolutionStrategy {
         // Replace vulnerable commons-lang with secure commons-lang3
         dependencySubstitution {
-            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.18.0')
+            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.17.0')
         }
     }
 }

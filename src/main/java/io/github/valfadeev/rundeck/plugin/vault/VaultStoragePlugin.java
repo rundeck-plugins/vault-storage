@@ -89,7 +89,10 @@ public class VaultStoragePlugin implements StoragePlugin {
     String approleId;
 
     @PluginProperty(title = "AppRole secret ID", description = "The secret-id used for authentication")
-    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
     String approleSecretId;
 
     @PluginProperty(title = "AppRole mount name", description = "The mount name of the AppRole authentication back end")
@@ -117,7 +120,10 @@ public class VaultStoragePlugin implements StoragePlugin {
     String trustStoreFile;
 
     @PluginProperty(title = "Truststore password", description = "The password needed to access the truststore", defaultValue = "")
-    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
     String trustStoreFilePassword;
 
     @PluginProperty(title = "PEM file", description = "The path of a file containing an X.509 certificate, " + "in unencrypted PEM format with UTF-8 encoding.")

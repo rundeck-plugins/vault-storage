@@ -40,3 +40,6 @@ Thumbs.db
 # Local environment files
 .env
 .env.local
+
+# Local build logs
+.temp

@@ -1,16 +1,30 @@
 plugins {
-    id 'pl.allegro.tech.build.axion-release' version '1.14.2'
+    id 'pl.allegro.tech.build.axion-release' version '1.18.17'
     id 'groovy'
-
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
-ext.rundeckVersion='5.14.0-rc1-20250722'
+
+group = 'org.rundeck.plugins'
+
+ext.publishName = "Vault Storage ${project.version}"
+ext.githubSlug = 'rundeck-plugins/vault-storage'
+ext.developers = [
+        [id: 'gschueler', name: 'Greg Schueler', email: 'greg@rundeck.com']
+]
+
+ext.rundeckVersion='6.0.0-alpha1-20260407'
 defaultTasks 'clean','build'
 apply plugin: 'java'
 apply plugin: 'idea'
 apply plugin: 'pl.allegro.tech.build.axion-release'
 apply plugin: 'groovy'
 
-sourceCompatibility = 11
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+    withJavadocJar()
+}
 ext.rundeckPluginVersion= '1.2'
 
 /**
@@ -19,17 +33,28 @@ ext.rundeckPluginVersion= '1.2'
  */
 ext.pluginClassNames='io.github.valfadeev.rundeck.plugin.vault.VaultStoragePlugin'
 
-
 scmVersion {
-    ignoreUncommittedChanges = true
+    ignoreUncommittedChanges = false
     tag {
-        prefix = ''
+        prefix = ''           // NO "v" prefix - see PLUGIN_TAGGING_ARCHITECTURE.md
         versionSeparator = ''
     }
+    versionCreator 'simple'  // Use simple version creator (just tag name)
 }
-project.version = scmVersion.version
+
+project.version = scmVersion.version  // Dynamic version from git tag
 
 repositories {
+    mavenLocal()
+    maven {
+        name = 'Central Portal Snapshots'
+        url = 'https://central.sonatype.com/repository/maven-snapshots/'
+        
+        // Only search this repository for org.rundeck snapshots
+        content {
+            includeGroup('org.rundeck')
+        }
+    }
     mavenCentral()
 }
 
@@ -50,11 +75,11 @@ dependencies {
     pluginLibs group: 'io.github.jopenlibs', name: 'vault-java-driver', version: '6.2.0', ext: 'jar'
 
 
-    //the compile dependency won't add the rundeck-core jar to the plugin contents
-    implementation group: 'org.rundeck', name: 'rundeck-core', version: rundeckVersion
-    
+    compileOnly group: 'org.rundeck', name: 'rundeck-core', version: rundeckVersion
+    testImplementation group: 'org.rundeck', name: 'rundeck-core', version: rundeckVersion
+
     // Add secure commons-lang3 to provide alternative to vulnerable commons-lang 2.6
-    implementation 'org.apache.commons:commons-lang3:3.18.0'
+    implementation 'org.apache.commons:commons-lang3:3.20.0'
     
     testImplementation(
             [group: 'junit', name: 'junit', version: '4.12', ext: 'jar'],
@@ -66,9 +91,9 @@ dependencies {
             [group: 'org.objenesis', name: 'objenesis', version: '3.2']
 
     )
-    testImplementation "org.codehaus.groovy:groovy-all:2.4.15"
-    testImplementation "org.spockframework:spock-core:1.0-groovy-2.4"
-    testImplementation "cglib:cglib-nodep:2.2.2"
+    testImplementation "org.apache.groovy:groovy-all:4.0.29"
+    testImplementation "org.spockframework:spock-core:2.4-groovy-4.0"
+    testImplementation "cglib:cglib-nodep:3.3.0"
 
 }
 
@@ -76,7 +101,7 @@ configurations.all {
     resolutionStrategy {
         // Replace vulnerable commons-lang with secure commons-lang3
         dependencySubstitution {
-            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.18.0')
+            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.17.0')
         }
     }
 }
@@ -110,3 +135,26 @@ jar {
 }
 //set jar task to depend on copyToLib
 jar.dependsOn(copyToLib)
+
+test {
+    useJUnitPlatform()
+    
+    // Java 17+ module access
+    jvmArgs = [
+        '--add-opens=java.base/java.lang=ALL-UNNAMED',
+        '--add-opens=java.base/java.util=ALL-UNNAMED',
+        '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED'
+    ]
+}
+
+nexusPublishing {
+    packageGroup = 'org.rundeck.plugins'
+    repositories {
+        sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+        }
+    }
+}
+
+apply from: "${rootDir}/gradle/publishing.gradle"

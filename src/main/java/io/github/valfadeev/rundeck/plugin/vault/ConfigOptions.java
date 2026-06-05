@@ -28,6 +28,7 @@ class ConfigOptions {
     static final String VAULT_SECRET_BACKEND = "secretBackend";
     static final String VAULT_STORAGE_BEHAVIOUR = "storageBehaviour";
     static final String VAULT_ENGINE_VERSION = "engineVersion";
+    static final String VAULT_USE_VAULT_METADATA_TIMESTAMPS = "useVaultMetadataTimestamps";
     static final String VAULT_AUTH_NAMESPACE = "authNamespace";
     static final String VAULT_CERT_AUTH_MOUNT = "certAuthMount";
 

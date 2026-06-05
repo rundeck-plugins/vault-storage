@@ -1,5 +1,6 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
+import com.dtolabs.rundeck.core.storage.StorageUtil;
 import io.github.jopenlibs.vault.response.LogicalResponse;
 import org.junit.Test;
 import org.rundeck.storage.api.Path;
@@ -71,6 +72,16 @@ public class VaultKeyTest {
 
         assertNotNull(resource);
         assertNotNull(resource.getContents());
+        Map<String, String> meta = resource.getContents().getMeta();
+        String created = meta.get(StorageUtil.RES_META_RUNDECK_CONTENT_CREATION_TIME);
+        String modified = meta.get(StorageUtil.RES_META_RUNDECK_CONTENT_MODIFY_TIME);
+        assertNotNull(created);
+        assertNotNull(modified);
+        Date createdDate = StorageUtil.parseDate(created, null);
+        Date modifiedDate = StorageUtil.parseDate(modified, null);
+        assertNotNull(createdDate);
+        assertNotNull(modifiedDate);
+        assertTrue("modification should be after creation", modifiedDate.after(createdDate));
     }
 
     @Test
@@ -367,10 +378,38 @@ public class VaultKeyTest {
 
         ResourceBase resource = vaultKey.loadResource();
 
-        // If both timestamps were successfully parsed, the resource will be created
         assertNotNull("Resource should be created with both timestamps", resource);
         assertNotNull("Resource contents should be set", resource.getContents());
-        // Both created_time and updated_time were successfully parsed and set internally
+        Map<String, String> meta2 = resource.getContents().getMeta();
+        Date created2 = StorageUtil.parseDate(meta2.get(StorageUtil.RES_META_RUNDECK_CONTENT_CREATION_TIME), null);
+        Date modified2 = StorageUtil.parseDate(meta2.get(StorageUtil.RES_META_RUNDECK_CONTENT_MODIFY_TIME), null);
+        assertNotNull(created2);
+        assertNotNull(modified2);
+        assertTrue(modified2.after(created2));
+    }
+
+    @Test
+    public void loadResource_whenUpdatedTimeMissing_fallsBackToCreatedForModification() {
+        Path path = PathUtil.asPath("keys/test-key");
+        LogicalResponse response = mock(LogicalResponse.class);
+        Map<String, String> data = new HashMap<>();
+        data.put("value", "test");
+        when(response.getData()).thenReturn(data);
+
+        VaultKey vaultKey = new VaultKey(response, path);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("created_time", "2025-12-11T14:16:59Z");
+        metadata.put("version", "2");
+        vaultKey.setVaultMetadata(metadata);
+
+        ResourceBase resource = vaultKey.loadResource();
+
+        Map<String, String> meta3 = resource.getContents().getMeta();
+        String createdStr3 = meta3.get(StorageUtil.RES_META_RUNDECK_CONTENT_CREATION_TIME);
+        String modifiedStr3 = meta3.get(StorageUtil.RES_META_RUNDECK_CONTENT_MODIFY_TIME);
+        assertNotNull(createdStr3);
+        assertNotNull(modifiedStr3);
+        assertEquals(createdStr3, modifiedStr3);
     }
 
     @Test

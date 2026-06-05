@@ -186,6 +186,14 @@ rundeck.storage.provider.[index].config.engineVersion=1/2
 
 Default value: 1
 
+* **useVaultMetadataTimestamps**: When `true` and **engineVersion** is `2`, the plugin reads the KV v2 **metadata** endpoint (`<mount>/metadata/...`) for secrets that have been updated more than once (`version > 1`), so Rundeck can show the **original** creation time and the **real** last-modified time. Requires `read` on `<mount>/metadata/*` in Vault policy. If the metadata call fails (e.g. missing permission), behavior falls back to the previous timestamps. For `version == 1`, no extra Vault call is made.
+
+```
+rundeck.storage.provider.[index].config.useVaultMetadataTimestamps=true
+```
+
+Default value: `false` (opt-in).
+
 ### Configuration Examples
 
 

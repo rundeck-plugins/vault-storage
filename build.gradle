@@ -1,5 +1,5 @@
 plugins {
-    id 'pl.allegro.tech.build.axion-release' version '1.18.17'
+    id 'pl.allegro.tech.build.axion-release' version '1.21.2'
     id 'groovy'
     id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
@@ -12,7 +12,7 @@ ext.developers = [
         [id: 'gschueler', name: 'Greg Schueler', email: 'greg@rundeck.com']
 ]
 
-ext.rundeckVersion='6.0.0-alpha1-20260407'
+ext.rundeckVersion='6.1.0-SNAPSHOT'
 defaultTasks 'clean','build'
 apply plugin: 'java'
 apply plugin: 'idea'

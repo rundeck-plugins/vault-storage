@@ -44,4 +44,18 @@ public class VaultKvMetadataReaderTest {
         assertEquals("secret/metadata/a/b", VaultStoragePlugin.getVaultMetadataPath("a/b", "secret", null));
         assertEquals("secret/metadata/a/b", VaultStoragePlugin.getVaultMetadataPath("a/b", "secret", ""));
     }
+
+    @Test
+    public void encodeLogicalPath_leavesPlainSegmentsUnchanged() {
+        assertEquals("secret/metadata/a/b", VaultKvMetadataReader.encodeLogicalPath("secret/metadata/a/b"));
+    }
+
+    @Test
+    public void encodeLogicalPath_preservesSeparatorsAndEncodesSegments() {
+        // '/' separators are preserved; spaces and reserved characters are percent-encoded per segment.
+        assertEquals("secret/metadata/my%20key/a%23b",
+                VaultKvMetadataReader.encodeLogicalPath("secret/metadata/my key/a#b"));
+        assertEquals("secret/metadata/q%3Fx/50%25",
+                VaultKvMetadataReader.encodeLogicalPath("secret/metadata/q?x/50%"));
+    }
 }

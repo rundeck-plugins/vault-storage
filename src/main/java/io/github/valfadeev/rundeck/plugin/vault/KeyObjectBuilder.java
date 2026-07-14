@@ -64,7 +64,7 @@ public class KeyObjectBuilder {
      * When KV v2 data read reports version &gt; 1, optionally load secret-level timestamps from the metadata endpoint
      * and merge them into the map used by {@link VaultKey#loadResource()}.
      */
-    private void mergeKv2SecretTimestamps(Path metadataPath, Map<String, String> dataReadMetadata, DataMetadata dataMetadata) {
+    private void mergeKv2SecretTimestamps(Path secretPath, Map<String, String> dataReadMetadata, DataMetadata dataMetadata) {
         if (!useVaultMetadataTimestamps || engineVersion != 2 || vaultConfig == null) {
             return;
         }
@@ -76,7 +76,7 @@ public class KeyObjectBuilder {
             return;
         }
         String logicalMetadataPath = VaultStoragePlugin.getVaultMetadataPath(
-                metadataPath.getPath(),
+                secretPath.getPath(),
                 vaultSecretBackend,
                 vaultPrefix);
         VaultKvMetadataReader.SecretTimestamps secretTimestamps =

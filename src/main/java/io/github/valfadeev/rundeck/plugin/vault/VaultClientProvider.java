@@ -96,6 +96,13 @@ class VaultClientProvider {
         return vaultConfig;
     }
 
+    /**
+     * The client is scoped to this provider's lifecycle, which is bound to the immutable {@code configuration}
+     * it was constructed with. Every {@link #getVaultConfig()} call (including token re-login) derives its
+     * {@link SslConfig}/{@code SSLContext} from that same configuration, so the TLS inputs never change and
+     * reusing the first-built client is safe. If per-instance dynamic SSL reconfiguration is ever introduced,
+     * this client would need to be rebuilt when the relevant TLS inputs change.
+     */
     private synchronized HttpClient getOrCreateSharedHttpClient(SslConfig sslConfig) {
         if (sharedHttpClient != null) {
             return sharedHttpClient;

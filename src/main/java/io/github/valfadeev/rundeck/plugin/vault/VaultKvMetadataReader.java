@@ -10,6 +10,7 @@ import io.github.jopenlibs.vault.SslConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -33,7 +34,52 @@ final class VaultKvMetadataReader {
         }
     }
 
+    /**
+     * Fallback {@link HttpClient} used only when the {@link VaultConfig} does not carry a shared client.
+     * java.net.http.HttpClient is thread-safe and meant to be shared; keeping a single static instance
+     * avoids spawning a fresh client (and its native selector/worker threads) on every metadata call
+     * during bulk listing.
+     */
+    private static volatile HttpClient fallbackHttpClient;
+
     private VaultKvMetadataReader() {
+    }
+
+    private static HttpClient getFallbackHttpClient(SslConfig sslConfig) {
+        HttpClient client = fallbackHttpClient;
+        if (client == null) {
+            synchronized (VaultKvMetadataReader.class) {
+                client = fallbackHttpClient;
+                if (client == null) {
+                    HttpClient.Builder builder = HttpClient.newBuilder();
+                    if (sslConfig != null && sslConfig.getSslContext() != null) {
+                        builder.sslContext(sslConfig.getSslContext());
+                    }
+                    client = builder.build();
+                    fallbackHttpClient = client;
+                    LOG.debug("[vault] created fallback shared HttpClient for KV metadata calls");
+                }
+            }
+        }
+        return client;
+    }
+
+    /**
+     * URL-encodes each path segment while preserving the {@code /} separators, so logical paths containing
+     * characters such as spaces, {@code #}, {@code ?} or {@code %} produce valid Vault requests.
+     */
+    static String encodeLogicalPath(String logicalPath) {
+        String[] segments = logicalPath.split("/", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segments.length; i++) {
+            if (i > 0) {
+                sb.append('/');
+            }
+            // URLEncoder targets application/x-www-form-urlencoded (encodes space as '+'); path
+            // segments need percent-encoding, so normalize '+' back to '%20'.
+            sb.append(URLEncoder.encode(segments[i], StandardCharsets.UTF_8).replace("+", "%20"));
+        }
+        return sb.toString();
     }
 
     /**
@@ -93,12 +139,18 @@ final class VaultKvMetadataReader {
             if (address.endsWith("/")) {
                 address = address.substring(0, address.length() - 1);
             }
-            String url = address + "/v1/" + metadataLogicalPath;
+            String url = address + "/v1/" + encodeLogicalPath(metadataLogicalPath);
 
-            // Reuse the shared HttpClient set on VaultConfig; falling back to a new Rest() would create
-            // a fresh java.net.http.HttpClient on every call and leak native threads under bulk listing.
+            SslConfig sslConfig = config.getSslConfig();
+
+            // Reuse the shared HttpClient set on VaultConfig; fall back to a single static shared client
+            // rather than creating a fresh java.net.http.HttpClient per call, which would leak native
+            // threads under bulk listing.
             HttpClient httpClient = config.getHttpClient();
-            Rest rest = (httpClient != null) ? new Rest(httpClient) : new Rest();
+            if (httpClient == null) {
+                httpClient = getFallbackHttpClient(sslConfig);
+            }
+            Rest rest = new Rest(httpClient);
             rest.url(url);
             String token = config.getToken();
             if (token != null && !token.isEmpty()) {
@@ -109,7 +161,6 @@ final class VaultKvMetadataReader {
                 rest.header("X-Vault-Namespace", namespace);
             }
 
-            SslConfig sslConfig = config.getSslConfig();
             if (sslConfig != null) {
                 rest.sslVerification(sslConfig.isVerify());
                 if (sslConfig.getSslContext() != null) {

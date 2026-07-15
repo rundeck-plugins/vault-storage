@@ -47,7 +47,7 @@ services:
     ports:
     - "4442:4440"
   mysql:
-    image: mysql:5.7
+    image: mysql:9.7
     ports:
       - "3306"
     environment:

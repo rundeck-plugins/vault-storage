@@ -315,45 +315,38 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     protected void lookup(){
-        log.info("Beginning Vault lookup...");
+        log.fine("Beginning Vault lookup...");
         try {
-            log.info("Will try to lookup self...");
+            log.fine("Will try to lookup self...");
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
             if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
                 loginVault(clientProvider);
             }
+            log.fine("Finished Vault lookup successfully.");
         } catch (VaultException e) {
-            log.log(Level.WARNING, "Caught VaultException: " + e.getMessage(), e);
-
             if(e.getHttpStatusCode() == 403){//try login again
-                log.info("Received 403, will try login again");
+                log.fine("Received 403, will try login again");
                 loginVault(clientProvider);
             } else {
-                log.log(Level.WARNING, "Not a 403 error: " + e.getMessage(), e);
-                e.printStackTrace();
+                log.log(Level.WARNING, "Caught VaultException during lookup: " + e.getMessage(), e);
             }
         } catch (ConfigurationException e) {
-            log.log(Level.WARNING, "Caught ConfigurationException: " + e.getMessage(), e);
-            e.printStackTrace();
+            log.log(Level.WARNING, "Caught ConfigurationException during lookup: " + e.getMessage(), e);
         } catch (Exception e) {
-            log.log(Level.WARNING, "Caught Exception: " + e.getMessage(), e);
-            e.printStackTrace();
+            log.log(Level.WARNING, "Caught Exception during lookup: " + e.getMessage(), e);
         }
-        log.info("Finished Vault lookup succesfully.");
     }
 
     private void loginVault(VaultClientProvider provider){
-        log.info("Logging into Vault...");
+        log.fine("Logging into Vault...");
         try{
-            log.info("Getting Vault Client from provider");
             vaultClient = provider.getVaultClient();
-            log.info("Calling vaultClient logical");
             vault = vaultClient.logical();
+            log.fine("Logged into Vault successfully");
         }
         catch (Exception e){
             log.log(Level.WARNING, "Error logging into Vault: " + e.getMessage(), e);
         }
-        log.info("Logged into Vault successfully");
     }
 
     private boolean isVaultDir(String key) {

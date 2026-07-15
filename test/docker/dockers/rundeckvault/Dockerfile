@@ -19,7 +19,7 @@ RUN apt-get -y install rundeck-cli
 RUN \
  add-apt-repository -y ppa:openjdk-r/ppa  && \
  apt-get update && \
- apt-get install -y openjdk-8-jdk
+ apt-get install -y openjdk-11-jdk
 
 ENV USERNAME=rundeck \
     USER=rundeck \

@@ -1,10 +1,10 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
-import com.bettercloud.vault.Vault;
-import com.bettercloud.vault.VaultException;
-import com.bettercloud.vault.api.Auth;
-import com.bettercloud.vault.api.Logical;
-import com.bettercloud.vault.response.LookupResponse;
+import io.github.jopenlibs.vault.Vault;
+import io.github.jopenlibs.vault.VaultException;
+import io.github.jopenlibs.vault.api.Auth;
+import io.github.jopenlibs.vault.api.Logical;
+import io.github.jopenlibs.vault.response.LookupResponse;
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException;
 import org.junit.Test;
 import org.mockito.Spy;

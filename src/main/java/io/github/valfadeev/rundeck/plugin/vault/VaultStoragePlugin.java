@@ -6,12 +6,11 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
-import com.bettercloud.vault.Vault;
-import com.bettercloud.vault.VaultException;
-import com.bettercloud.vault.api.Logical;
-import com.bettercloud.vault.response.LogicalResponse;
-import com.bettercloud.vault.response.LookupResponse;
-import com.bettercloud.vault.response.VaultResponse;
+import io.github.jopenlibs.vault.Vault;
+import io.github.jopenlibs.vault.VaultException;
+import io.github.jopenlibs.vault.api.Logical;
+import io.github.jopenlibs.vault.response.LogicalResponse;
+import io.github.jopenlibs.vault.response.LookupResponse;
 import com.dtolabs.rundeck.core.plugins.Plugin;
 import com.dtolabs.rundeck.core.plugins.configuration.*;
 import com.dtolabs.rundeck.core.storage.ResourceMeta;
@@ -23,6 +22,8 @@ import org.rundeck.storage.api.PathUtil;
 import org.rundeck.storage.api.Resource;
 import org.rundeck.storage.api.StorageException;
 import org.rundeck.storage.impl.ResourceBase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
 
@@ -35,6 +36,7 @@ import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
 @Plugin(name = "vault-storage", service = ServiceNameConstants.Storage)
 @PluginDescription(title = "Vault Storage", description = "Use Hashicorp Vault as a storage layer")
 public class VaultStoragePlugin implements StoragePlugin {
+    private static final Logger LOG = LoggerFactory.getLogger(VaultStoragePlugin.class);
 
     java.util.logging.Logger log = java.util.logging.Logger.getLogger("vault-storage");
 
@@ -68,7 +70,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     })
     String address;
 
-    @SelectValues(freeSelect = false, values = { "token", "approle", "cert" , "github", "userpass"})
+    @SelectValues(values = { "token", "approle", "cert" , "github", "userpass"})
     @PluginProperty(title = "Vault auth backend", description = "Authentication backend", defaultValue = "token")
     @RenderingOptions({
             @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
@@ -88,13 +90,20 @@ public class VaultStoragePlugin implements StoragePlugin {
     String approleId;
 
     @PluginProperty(title = "AppRole secret ID", description = "The secret-id used for authentication")
-    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
     String approleSecretId;
 
     @PluginProperty(title = "AppRole mount name", description = "The mount name of the AppRole authentication back end")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "App Role Authentication")
     String approleAuthMount;
 
+    @PluginProperty(title = "Cert Auth Mount",
+            description = "The mount name of the TLS Certificate authentication back end (e.g., tls-auth). Defaults to 'cert'.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    String certAuthMount;
 
     @PluginProperty(title = "Key store file", description = "A Java keystore, containing a client certificate " + "that's registered with Vault's TLS Certificate auth backend.")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
@@ -111,6 +120,13 @@ public class VaultStoragePlugin implements StoragePlugin {
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     String trustStoreFile;
 
+    @PluginProperty(title = "Truststore password", description = "The password needed to access the truststore", defaultValue = "")
+    @RenderingOptions({
+            @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config"),
+            @RenderingOption(key = StringRenderingConstants.DISPLAY_TYPE_KEY, value = "PASSWORD")
+    })
+    String trustStoreFilePassword;
+
     @PluginProperty(title = "PEM file", description = "The path of a file containing an X.509 certificate, " + "in unencrypted PEM format with UTF-8 encoding.")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     String pemFile;
@@ -123,7 +139,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     String clientKeyPemFile;
 
-    @PluginProperty(title = "Disable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
+    @PluginProperty(title = "Enable SSL validation", description = "Specifies whether SSL validation is to be performed", defaultValue = "true", required = true)
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "SSL Config")
     Boolean validateSsl;
 
@@ -189,7 +205,7 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     protected Vault getVaultClient() throws ConfigurationException {
         //clone former properties configuration passes to configure method
-        if(vaultClient == null || properties.size()==0) {
+        if(vaultClient == null || properties.isEmpty()) {
 
             if(secretBackend != null){
                 properties.setProperty(VAULT_SECRET_BACKEND, secretBackend);
@@ -215,6 +231,12 @@ public class VaultStoragePlugin implements StoragePlugin {
             }
             if(trustStoreFile != null){
                 properties.setProperty(VAULT_TRUST_STORE_FILE, trustStoreFile);
+            }
+            if(trustStoreFilePassword != null){
+                properties.setProperty(VAULT_TRUST_STORE_FILE_PASSWORD, trustStoreFilePassword);
+            }
+            if (certAuthMount != null) {
+                properties.setProperty(VAULT_CERT_AUTH_MOUNT, certAuthMount);
             }
             if(pemFile != null){
                 properties.setProperty(VAULT_PEM_FILE, pemFile);
@@ -306,8 +328,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     public static String getVaultPath(String rawPath, String vaultSecretBackend, String vaultPrefix) {
-        String path= vaultPrefix != null && !vaultPrefix.equals("") ? String.format("%s/%s/%s", vaultSecretBackend, vaultPrefix, rawPath) : String.format("%s/%s", vaultSecretBackend, rawPath);
-        return path;
+        return vaultPrefix != null && !vaultPrefix.isEmpty() ? String.format("%s/%s/%s", vaultSecretBackend, vaultPrefix, rawPath) : String.format("%s/%s", vaultSecretBackend, rawPath);
     }
 
     private boolean isDir(String key) {
@@ -379,12 +400,12 @@ public class VaultStoragePlugin implements StoragePlugin {
         ALL
     }
 
-    private VaultResponse saveResource(Path path, ResourceMeta content, String event) {
+    private void saveResource(Path path, ResourceMeta content, String event) {
         ByteArrayOutputStream baoStream = new ByteArrayOutputStream();
         try {
             content.writeContent(baoStream);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
+            LOG.debug("Failed to extract resource content for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
             throw new StorageException(
                     String.format("Encountered error while extracting "
                                     + "resource content: %s",
@@ -393,33 +414,39 @@ public class VaultStoragePlugin implements StoragePlugin {
                     path);
         }
 
-
         KeyObject object;
-        if(event.equals("create")){
-           if(rundeckObject){
-               object=new RundeckKey(path);
-           }else{
-               object=new VaultKey(path,null);
-           }
-        }else{
-           object = this.getVaultObject(path);
+        if (event.equals("create")) {
+            if (rundeckObject) {
+                object = new RundeckKey(path);
+                LOG.debug("Created RundeckKey object for path {} with event {}", path, event);
+            } else {
+                object = new VaultKey(path, null);
+                LOG.debug("Created VaultKey object for path {} with event {}", path, event);
+            }
+        } else {
+            object = this.getVaultObject(path);
+            LOG.debug("Retrieved existing VaultKey object for path {} with event {}", path, event);
         }
 
-        Map<String, Object> payload=object.saveResource(content,event,baoStream);
+        Map<String, Object> payload = object.saveResource(content, event, baoStream);
+        LOG.debug("Generated payload for path {} with event {}: {}", path, event, payload);
 
         try {
             lookup();
-            return vault.write(getVaultPath(object.getPath().getPath(),secretBackend,prefix), payload);
+            String vaultPath = getVaultPath(object.getPath().getPath(), secretBackend, prefix);
+            LOG.debug("Writing data to Vault at {} for path {} with event {}", vaultPath, path, event);
+            vault.write(vaultPath, payload);
+            LOG.debug("Successfully wrote data to Vault at {} for path {} with event {}", vaultPath, path, event);
         } catch (VaultException e) {
+            LOG.debug("Failed to write data to Vault for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
             throw new StorageException(
                     String.format("Encountered error while writing data to Vault %s",
-                                  e.getMessage()),
+                            e.getMessage()),
                     StorageException.Event.valueOf(event.toUpperCase()),
                     path);
         }
-
-
     }
+
 
     private Resource<ResourceMeta> loadDir(Path path) {
         return new ResourceBase<>(path, null, true);
@@ -465,7 +492,7 @@ public class VaultStoragePlugin implements StoragePlugin {
         if (type.equals(KeyType.RESOURCE)) {
             filtered = response.stream().filter(k -> !isDir(k)).collect(Collectors.toList());
         } else if (type.equals(KeyType.DIRECTORY)) {
-            filtered = response.stream().filter(k -> isDir(k)).collect(Collectors.toList());
+            filtered = response.stream().filter(this::isDir).collect(Collectors.toList());
         } else {
             filtered = response;
         }
@@ -529,7 +556,7 @@ public class VaultStoragePlugin implements StoragePlugin {
             lookup();
 
             List<String> list = getVaultList(path);
-            if(list.size() > 0){
+            if(!list.isEmpty()){
                 return true;
             }
 
@@ -554,11 +581,7 @@ public class VaultStoragePlugin implements StoragePlugin {
     public boolean hasResource(Path path) {
         KeyObject object=getVaultObject(path);
 
-        if(object.isError()){
-            return false;
-        }else{
-            return true;
-        }
+        return !object.isError();
     }
 
     @Override
@@ -573,16 +596,12 @@ public class VaultStoragePlugin implements StoragePlugin {
 
             List<String> list=getVaultList(path);
 
-            if(list.size() > 0){
-                return list.size() > 0;
+            if(!list.isEmpty()){
+                return true;
             }else{
                 KeyObject object = this.getVaultObject(path);
-                if(object.isRundeckObject()==false && object.isMultiplesKeys()){
-                    return true;
-                }
+                return !object.isRundeckObject() && object.isMultiplesKeys();
             }
-
-            return false;
 
         } catch (VaultException e) {
             return false;
@@ -683,14 +702,13 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     public KeyObject getVaultObject(Path path){
         lookup();
-        KeyObject value= KeyObjectBuilder.builder()
+
+        return KeyObjectBuilder.builder()
                                 .path(path)
                                 .vault(vault)
                                 .vaultPrefix(prefix)
                                 .vaultSecretBackend(secretBackend)
                                 .build();
-
-        return value;
     }
 
 

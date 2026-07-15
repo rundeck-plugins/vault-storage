@@ -101,7 +101,7 @@ configurations.all {
     resolutionStrategy {
         // Replace vulnerable commons-lang with secure commons-lang3
         dependencySubstitution {
-            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.17.0')
+            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.20.0')
         }
     }
 }

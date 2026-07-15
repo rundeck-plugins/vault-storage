@@ -72,7 +72,7 @@ dependencies {
     // add any third-party jar dependencies you wish to include in the plugin
     // using the `pluginLibs` configuration as shown here:
 
-    pluginLibs group: 'io.github.jopenlibs', name: 'vault-java-driver', version: '6.2.0', ext: 'jar'
+    pluginLibs group: 'io.github.jopenlibs', name: 'vault-java-driver', version: '6.2.2', ext: 'jar'
 
 
     compileOnly group: 'org.rundeck', name: 'rundeck-core', version: rundeckVersion

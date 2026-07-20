@@ -152,9 +152,9 @@ final class VaultKvMetadataReader {
             }
             Rest rest = new Rest(httpClient);
             rest.url(url);
-            String token = config.getToken();
-            if (token != null && !token.isEmpty()) {
-                rest.header("X-Vault-Token", token);
+            char[] token = config.getToken();
+            if (token != null && token.length > 0) {
+                rest.header("X-Vault-Token", new String(token));
             }
             String namespace = config.getNameSpace();
             if (namespace != null && !namespace.isEmpty()) {

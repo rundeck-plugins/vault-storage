@@ -2,6 +2,7 @@ package io.github.valfadeev.rundeck.plugin.vault;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.net.http.HttpClient;
 import java.security.KeyStore;
 import java.util.Properties;
 
@@ -21,9 +22,24 @@ import org.slf4j.LoggerFactory;
 class VaultClientProvider {
     private static final Logger LOG = LoggerFactory.getLogger(VaultClientProvider.class);
     private final Properties configuration;
+    private VaultConfig lastVaultConfig;
+    /**
+     * Shared {@link HttpClient}: java.net.http.HttpClient is thread-safe and meant to be shared.
+     * Reusing a single instance across all Vault calls prevents native-thread exhaustion when many
+     * reads happen back-to-back (e.g. listing a key-storage directory with hundreds/thousands of keys).
+     */
+    private HttpClient sharedHttpClient;
 
     VaultClientProvider(Properties configuration) {
         this.configuration = configuration;
+    }
+
+    /**
+     * The {@link VaultConfig} last used to create the {@link Vault} client (address, token, SSL, timeouts, namespace).
+     * Used for auxiliary HTTP calls that must not go through {@link io.github.jopenlibs.vault.api.Logical} path rewriting.
+     */
+    VaultConfig getLastVaultConfig() {
+        return lastVaultConfig;
     }
 
     Vault getVaultClient() throws ConfigurationException {
@@ -38,6 +54,7 @@ class VaultClientProvider {
             String authToken = getVaultAuthToken();
             LOG.debug("[vault] got auth token? {}", (authToken != null && !authToken.isEmpty()));
             vaultConfig.token(authToken).build();
+            this.lastVaultConfig = vaultConfig;
             LOG.debug("[vault] building Vault client with engineVersion={} retries={} interval={}ms",
                     vaultEngineVersion, vaultMaxRetries, vaultRetryIntervalMilliseconds);
             return Vault.create(vaultConfig, vaultEngineVersion).withRetries(vaultMaxRetries,
@@ -62,7 +79,8 @@ class VaultClientProvider {
         vaultConfig.address(vaultAddress)
                 .openTimeout(vaultOpenTimeout)
                 .readTimeout(vaultReadTimeout)
-                .sslConfig(sslConfig);
+                .sslConfig(sslConfig)
+                .httpClient(getOrCreateSharedHttpClient(sslConfig));
 
         if(nameSpace != null){
             try {
@@ -76,6 +94,26 @@ class VaultClientProvider {
 
         LOG.debug("[vault] built VaultConfig for address='{}', namespace='{}'", vaultAddress, nameSpace);
         return vaultConfig;
+    }
+
+    /**
+     * The client is scoped to this provider's lifecycle, which is bound to the immutable {@code configuration}
+     * it was constructed with. Every {@link #getVaultConfig()} call (including token re-login) derives its
+     * {@link SslConfig}/{@code SSLContext} from that same configuration, so the TLS inputs never change and
+     * reusing the first-built client is safe. If per-instance dynamic SSL reconfiguration is ever introduced,
+     * this client would need to be rebuilt when the relevant TLS inputs change.
+     */
+    private synchronized HttpClient getOrCreateSharedHttpClient(SslConfig sslConfig) {
+        if (sharedHttpClient != null) {
+            return sharedHttpClient;
+        }
+        HttpClient.Builder builder = HttpClient.newBuilder();
+        if (sslConfig != null && sslConfig.getSslContext() != null) {
+            builder.sslContext(sslConfig.getSslContext());
+        }
+        sharedHttpClient = builder.build();
+        LOG.debug("[vault] created shared HttpClient for all Vault calls");
+        return sharedHttpClient;
     }
 
     private SslConfig getSslConfig() throws ConfigurationException {

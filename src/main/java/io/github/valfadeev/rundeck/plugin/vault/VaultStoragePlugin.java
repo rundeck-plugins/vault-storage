@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import io.github.jopenlibs.vault.Vault;
 import io.github.jopenlibs.vault.VaultException;
+import io.github.jopenlibs.vault.VaultConfig;
 import io.github.jopenlibs.vault.api.Logical;
 import io.github.jopenlibs.vault.response.LogicalResponse;
 import io.github.jopenlibs.vault.response.LookupResponse;
@@ -59,6 +60,9 @@ public class VaultStoragePlugin implements StoragePlugin {
     private VaultClientProvider clientProvider;
     private Vault vaultClient;
     Properties properties = new Properties();
+    /** Effective after {@link #getVaultClient()}: KV v2 metadata reads for original created / updated times. */
+    private boolean useVaultMetadataTimestampsEnabled;
+    private int vaultEngineVersionParsed = 1;
 
     @PluginProperty(title = "vaultPrefix", description = "username for the account to authenticate to")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
@@ -199,6 +203,15 @@ public class VaultStoragePlugin implements StoragePlugin {
     @SelectValues(freeSelect = false, values = { "1", "2"})
     String engineVersion;
 
+    @PluginProperty(
+            title = "Use Vault metadata timestamps (KV v2)",
+            description = "When enabled and engine version is 2, reads the KV v2 metadata endpoint "
+                    + "to show the original creation time and the real last-modified time for keys that have been "
+                    + "updated (version > 1). Requires read access to <mount>/metadata/*. Default: off.",
+            defaultValue = "false")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
+    Boolean useVaultMetadataTimestamps;
+
     @PluginProperty(title = "Authentication Namespace", description = "The namespace for authentication")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
     String authNamespace;
@@ -295,6 +308,9 @@ public class VaultStoragePlugin implements StoragePlugin {
             if(engineVersion != null){
                 properties.setProperty(VAULT_ENGINE_VERSION, engineVersion);
             }
+            if (useVaultMetadataTimestamps != null) {
+                properties.setProperty(VAULT_USE_VAULT_METADATA_TIMESTAMPS, useVaultMetadataTimestamps.toString());
+            }
             if(authNamespace != null){
                 properties.setProperty(VAULT_AUTH_NAMESPACE, authNamespace);
             }
@@ -302,6 +318,17 @@ public class VaultStoragePlugin implements StoragePlugin {
             //set member variables on object on entry, lookup -> getVaultClient()
             if (storageBehaviour != null && storageBehaviour.equals("vault")) {
                 rundeckObject = false;
+            }
+
+            useVaultMetadataTimestampsEnabled = Boolean.TRUE.equals(useVaultMetadataTimestamps);
+            if (engineVersion != null) {
+                try {
+                    vaultEngineVersionParsed = Integer.parseInt(engineVersion.trim());
+                } catch (NumberFormatException e) {
+                    vaultEngineVersionParsed = 1;
+                }
+            } else {
+                vaultEngineVersionParsed = 1;
             }
 
             guaranteedTokenValidity = calculateGuaranteedTokenValidity(properties);
@@ -329,6 +356,17 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     public static String getVaultPath(String rawPath, String vaultSecretBackend, String vaultPrefix) {
         return vaultPrefix != null && !vaultPrefix.isEmpty() ? String.format("%s/%s/%s", vaultSecretBackend, vaultPrefix, rawPath) : String.format("%s/%s", vaultSecretBackend, rawPath);
+    }
+
+    /**
+     * Logical path for KV v2 metadata read ({@code GET /v1/<mount>/metadata/<prefix?>/<path>}), without the
+     * {@code /data/} segment used for secret reads.
+     */
+    public static String getVaultMetadataPath(String rawPath, String vaultSecretBackend, String vaultPrefix) {
+        if (vaultPrefix != null && !vaultPrefix.isEmpty()) {
+            return String.format("%s/metadata/%s/%s", vaultSecretBackend, vaultPrefix, rawPath);
+        }
+        return String.format("%s/metadata/%s", vaultSecretBackend, rawPath);
     }
 
     private boolean isDir(String key) {
@@ -703,11 +741,19 @@ public class VaultStoragePlugin implements StoragePlugin {
     public KeyObject getVaultObject(Path path){
         lookup();
 
+        VaultConfig vaultConfigForMetadata = null;
+        if (clientProvider != null) {
+            vaultConfigForMetadata = clientProvider.getLastVaultConfig();
+        }
+
         return KeyObjectBuilder.builder()
                                 .path(path)
                                 .vault(vault)
                                 .vaultPrefix(prefix)
                                 .vaultSecretBackend(secretBackend)
+                                .useVaultMetadataTimestamps(useVaultMetadataTimestampsEnabled)
+                                .engineVersion(vaultEngineVersionParsed)
+                                .vaultConfig(vaultConfigForMetadata)
                                 .build();
     }
 

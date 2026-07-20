@@ -93,7 +93,7 @@ dependencies {
     )
 
     // Required so JUnit 4 test classes are discovered under useJUnitPlatform() (otherwise only the Spock spec runs).
-    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.10.2'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.14.4'
     testImplementation "org.apache.groovy:groovy-all:4.0.32"
     testImplementation "org.spockframework:spock-core:2.4-groovy-4.0"
     testImplementation "cglib:cglib-nodep:3.3.0"

@@ -387,12 +387,12 @@ public class VaultStoragePlugin implements StoragePlugin {
                 log.fine("Received 403, will try login again");
                 loginVault(clientProvider);
             } else {
-                log.log(Level.WARNING, "Caught VaultException during lookup: " + e.getMessage(), e);
+                log.log(Level.WARNING, "Caught VaultException during lookup", e);
             }
         } catch (ConfigurationException e) {
-            log.log(Level.WARNING, "Caught ConfigurationException during lookup: " + e.getMessage(), e);
+            log.log(Level.WARNING, "Caught ConfigurationException during lookup", e);
         } catch (Exception e) {
-            log.log(Level.WARNING, "Caught Exception during lookup: " + e.getMessage(), e);
+            log.log(Level.WARNING, "Caught unexpected exception during lookup", e);
         }
     }
 
@@ -404,7 +404,9 @@ public class VaultStoragePlugin implements StoragePlugin {
             log.fine("Logged into Vault successfully");
         }
         catch (Exception e){
-            log.log(Level.WARNING, "Error logging into Vault: " + e.getMessage(), e);
+            vaultClient = null;
+            vault = null;
+            log.log(Level.WARNING, "Error logging into Vault", e);
         }
     }
 

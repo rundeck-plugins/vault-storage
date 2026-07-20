@@ -3,6 +3,7 @@ package io.github.valfadeev.rundeck.plugin.vault;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import io.github.jopenlibs.vault.Vault;
@@ -373,29 +374,39 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     protected void lookup(){
+        log.fine("Beginning Vault lookup...");
         try {
+            log.fine("Will try to lookup self...");
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
             if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
                 loginVault(clientProvider);
             }
+            log.fine("Finished Vault lookup successfully.");
         } catch (VaultException e) {
             if(e.getHttpStatusCode() == 403){//try login again
+                log.fine("Received 403, will try login again");
                 loginVault(clientProvider);
             } else {
-                e.printStackTrace();
+                log.log(Level.WARNING, "Caught VaultException during lookup", e);
             }
         } catch (ConfigurationException e) {
-            e.printStackTrace();
+            log.log(Level.WARNING, "Caught ConfigurationException during lookup", e);
+        } catch (Exception e) {
+            log.log(Level.WARNING, "Caught unexpected exception during lookup", e);
         }
     }
 
     private void loginVault(VaultClientProvider provider){
+        log.fine("Logging into Vault...");
         try{
             vaultClient = provider.getVaultClient();
             vault = vaultClient.logical();
+            log.fine("Logged into Vault successfully");
         }
-        catch (Exception ignored){
-
+        catch (Exception e){
+            vaultClient = null;
+            vault = null;
+            log.log(Level.WARNING, "Error logging into Vault", e);
         }
     }
 

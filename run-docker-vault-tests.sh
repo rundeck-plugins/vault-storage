@@ -33,12 +33,13 @@ check_args(){
 copy_jar(){
 	local FARGS=("$@")
 	local DIR=${FARGS[0]}
-	local -a VERS=( $( rd_get_plugin_version ) )
-	local JAR=$(basename "$PWD")-*.jar
-	local buildJar=$PWD/build/libs/$JAR
-	test -f $buildJar || die "Jar file not found $buildJar"
+	local buildJar
+	buildJar=$(find "$PWD/build/libs" -maxdepth 1 -name "$(basename "$PWD")-*.jar" \
+		-not -name "*-sources.jar" -not -name "*-javadoc.jar" | sort | tail -1)
+	test -n "$buildJar" && test -f "$buildJar" || die "Jar file not found in $PWD/build/libs"
+	local JAR=$(basename "$buildJar")
 	mkdir -p $DIR
-	cp $buildJar $DIR/dockers/rundeckvault/plugins
+	cp "$buildJar" $DIR/dockers/rundeckvault/plugins
 	echo $DIR/dockers/rundeckvault/plugins/$JAR
 }
 run_tests(){
@@ -54,7 +55,8 @@ run_tests(){
 run_docker_test(){
 	local FARGS=("$@")
 	local DIR=${FARGS[0]}
-	local launcherJar=$( copy_jar $DIR ) || die "Failed to copy jar"
+	local launcherJar
+	launcherJar=$( copy_jar $DIR ) || die "Failed to copy jar"
 	echo "Testing: $launcherJar"
 	run_tests $DIR
 }

@@ -415,8 +415,6 @@ public class VaultStoragePlugin implements StoragePlugin {
             log.fine("Logged into Vault successfully");
         }
         catch (Exception e){
-            vaultClient = null;
-            vault = null;
             log.log(Level.WARNING, "Error logging into Vault", e);
         }
     }

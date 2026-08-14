@@ -3,6 +3,7 @@ package io.github.valfadeev.rundeck.plugin.vault;
 import java.io.File;
 import java.io.FileInputStream;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Properties;
 
@@ -11,6 +12,11 @@ import io.github.jopenlibs.vault.Vault;
 import io.github.jopenlibs.vault.VaultConfig;
 import io.github.jopenlibs.vault.VaultException;
 import io.github.jopenlibs.vault.api.Auth;
+import io.github.jopenlibs.vault.json.Json;
+import io.github.jopenlibs.vault.response.AuthResponse;
+import io.github.jopenlibs.vault.rest.Rest;
+import io.github.jopenlibs.vault.rest.RestException;
+import io.github.jopenlibs.vault.rest.RestResponse;
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException;
 
 import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
@@ -334,8 +340,14 @@ class VaultClientProvider {
                 LOG.debug("[vault] auth=CERT");
                 final String configured = configuration.getProperty(VAULT_CERT_AUTH_MOUNT);
                 final String mount = (configured == null || configured.isEmpty()) ? "cert" : configured;
+                final String certRoleName = configuration.getProperty(VAULT_CERT_ROLE_NAME);
                 try {
-                    authToken = vaultAuth.loginByCert(mount).getAuthClientToken();
+                    if (certRoleName != null && !certRoleName.isEmpty()) {
+                        LOG.debug("[vault] Cert login with role name at mount '{}'", mount);
+                        authToken = loginByCertWithRoleName(vaultAuthConfig, mount, certRoleName);
+                    } else {
+                        authToken = vaultAuth.loginByCert(mount).getAuthClientToken();
+                    }
 
                 } catch (VaultException e) {
                     LOG.debug("[vault] Cert login failed: {}", e.getMessage(), e);
@@ -353,5 +365,75 @@ class VaultClientProvider {
 
         }
         return authToken;
+    }
+
+    /**
+     * Logs in via Vault's TLS Certificate auth backend, pinning the login to a specific
+     * certificate role by sending the optional {@code name} field Vault's cert auth API accepts
+     * (see https://developer.hashicorp.com/vault/api-docs/auth/cert#login-with-tls-certificate-method).
+     * <p>
+     * {@link Auth#loginByCert(String)} in vault-java-driver does not expose this parameter, so this
+     * issues the {@code POST /v1/auth/<mount>/login} request directly (mirroring what the driver does
+     * internally, e.g. for {@code loginByAppRole}), reusing the already-configured TLS material and
+     * shared {@link HttpClient} from {@code vaultConfig}.
+     */
+    private String loginByCertWithRoleName(VaultConfig vaultConfig, String mount, String roleName)
+            throws VaultException {
+        final String requestJson = Json.object().add("name", roleName).toString();
+
+        // Same defensive guards as VaultKvMetadataReader.readSecretTimestamps, for consistency:
+        // trim a trailing '/' from the address, and only set namespace/sslContext when present.
+        // None of these are live bugs against vault-java-driver 6.2.2 today -- VaultConfig.address()
+        // already strips a trailing slash, and Rest already no-ops on a null/empty header value or a
+        // null sslContext -- but guarding explicitly here doesn't rely on those driver internals.
+        String address = vaultConfig.getAddress();
+        if (address != null && address.endsWith("/")) {
+            address = address.substring(0, address.length() - 1);
+        }
+
+        final SslConfig sslConfig = vaultConfig.getSslConfig();
+
+        final RestResponse restResponse;
+        try {
+            Rest rest = new Rest(vaultConfig.getHttpClient())
+                    .url(address + "/v1/auth/" + mount + "/login")
+                    .header("X-Vault-Request", "true")
+                    .body(requestJson.getBytes(StandardCharsets.UTF_8))
+                    .connectTimeoutSeconds(vaultConfig.getOpenTimeout())
+                    .readTimeoutSeconds(vaultConfig.getReadTimeout());
+
+            final String nameSpace = vaultConfig.getNameSpace();
+            if (nameSpace != null && !nameSpace.isEmpty()) {
+                rest.header("X-Vault-Namespace", nameSpace);
+            }
+
+            if (sslConfig != null) {
+                rest.sslVerification(sslConfig.isVerify());
+                if (sslConfig.getSslContext() != null) {
+                    rest.sslContext(sslConfig.getSslContext());
+                }
+            }
+
+            restResponse = rest.post();
+        } catch (RestException e) {
+            throw new VaultException(e);
+        }
+
+        if (restResponse.getStatus() != 200) {
+            throw new VaultException(
+                    "Vault responded with HTTP status code: " + restResponse.getStatus()
+                            + "\nResponse body: " + new String(restResponse.getBody(), StandardCharsets.UTF_8),
+                    restResponse.getStatus());
+        }
+
+        // Same MIME-type check Auth.loginByCert()/loginByAppRole() do internally: surfaces a clear
+        // error for a 200 with an unexpected body (e.g. a proxy in front of Vault) instead of
+        // AuthResponse silently swallowing the JSON parse failure and returning a null token.
+        final String mimeType = restResponse.getMimeType() == null ? "null" : restResponse.getMimeType();
+        if (!mimeType.equals("application/json")) {
+            throw new VaultException("Vault responded with MIME type: " + mimeType, restResponse.getStatus());
+        }
+
+        return new AuthResponse(restResponse, 0).getAuthClientToken();
     }
 }

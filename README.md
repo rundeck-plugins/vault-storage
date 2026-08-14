@@ -88,6 +88,11 @@ rundeck.storage.provider.[index].config.authNamespace=namespace
 rundeck.storage.provider.[index].config.certAuthMount=mount-name
 ```
 
+* **certRoleName**: Cert Role Name (Optional). The name of the certificate role to authenticate against, sent as the `name` parameter in the cert auth login request ([Vault cert auth API](https://developer.hashicorp.com/vault/api-docs/auth/cert#login-with-tls-certificate-method)). Required by Vault deployments that register multiple certificate roles under the same auth mount and need the role name to be specified explicitly. If not set, Vault selects a role by matching the presented certificate (previous behavior, unaffected).
+```
+rundeck.storage.provider.[index].config.certRoleName=my-certificate-role-name
+```
+
 * **keyStoreFile**: Key store file
 A Java keystore, containing a client certificate that's registered with Vault's TLS Certificate auth backend.
 
@@ -270,12 +275,14 @@ rundeck.storage.provider.1.config.authBackend=cert
 rundeck.storage.provider.1.config.secretBackend=kv
 rundeck.storage.provider.1.config.engineVersion=2
 rundeck.storage.provider.1.config.certAuthMount=tls-auth
+rundeck.storage.provider.1.config.certRoleName=my-certificate-role-name
 rundeck.storage.provider.1.config.keyStoreFile=$KEYSTORE_FILE
 rundeck.storage.provider.1.config.keyStoreFilePassword=$KEYSTORE_PASSWORD
 rundeck.storage.provider.1.config.trustStoreFile=$TRUSTSTORE_FILE
 rundeck.storage.provider.1.config.truststoreFilePassword=$TRUSTSTORE_PASSWORD
 rundeck.storage.provider.1.config.validateSsl=true
 ```
+`certRoleName` is optional — omit it to keep the previous behavior of letting Vault pick the role by matching the certificate.
 ## Vault API versions
 
 Since version 1.3.1, this plugin can work with `kV Secrets Engine - Version 2`. 

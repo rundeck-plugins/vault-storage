@@ -108,6 +108,14 @@ public class VaultStoragePlugin implements StoragePlugin {
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
     String certAuthMount;
 
+    @PluginProperty(title = "Cert Role Name",
+            description = "Optional. The name of the certificate role to authenticate against, sent as the "
+                    + "'name' parameter in the cert auth login request. Required by Vault deployments that "
+                    + "register multiple certificate roles under the same auth mount. If not set, Vault selects "
+                    + "a role by matching the presented certificate, preserving prior behavior.")
+    @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
+    String certRoleName;
+
     @PluginProperty(title = "Key store file", description = "A Java keystore, containing a client certificate " + "that's registered with Vault's TLS Certificate auth backend.")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Authentication")
     String keyStoreFile;
@@ -249,6 +257,9 @@ public class VaultStoragePlugin implements StoragePlugin {
             }
             if (certAuthMount != null) {
                 properties.setProperty(VAULT_CERT_AUTH_MOUNT, certAuthMount);
+            }
+            if (certRoleName != null) {
+                properties.setProperty(VAULT_CERT_ROLE_NAME, certRoleName);
             }
             if(pemFile != null){
                 properties.setProperty(VAULT_PEM_FILE, pemFile);

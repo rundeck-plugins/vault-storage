@@ -3,6 +3,7 @@ package io.github.valfadeev.rundeck.plugin.vault;
 import java.io.File;
 import java.io.FileInputStream;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Properties;
 
@@ -11,6 +12,11 @@ import io.github.jopenlibs.vault.Vault;
 import io.github.jopenlibs.vault.VaultConfig;
 import io.github.jopenlibs.vault.VaultException;
 import io.github.jopenlibs.vault.api.Auth;
+import io.github.jopenlibs.vault.json.Json;
+import io.github.jopenlibs.vault.response.AuthResponse;
+import io.github.jopenlibs.vault.rest.Rest;
+import io.github.jopenlibs.vault.rest.RestException;
+import io.github.jopenlibs.vault.rest.RestResponse;
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException;
 
 import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
@@ -334,8 +340,14 @@ class VaultClientProvider {
                 LOG.debug("[vault] auth=CERT");
                 final String configured = configuration.getProperty(VAULT_CERT_AUTH_MOUNT);
                 final String mount = (configured == null || configured.isEmpty()) ? "cert" : configured;
+                final String certRoleName = configuration.getProperty(VAULT_CERT_ROLE_NAME);
                 try {
-                    authToken = vaultAuth.loginByCert(mount).getAuthClientToken();
+                    if (certRoleName != null && !certRoleName.isEmpty()) {
+                        LOG.debug("[vault] Cert login with role name at mount '{}'", mount);
+                        authToken = loginByCertWithRoleName(vaultAuthConfig, mount, certRoleName);
+                    } else {
+                        authToken = vaultAuth.loginByCert(mount).getAuthClientToken();
+                    }
 
                 } catch (VaultException e) {
                     LOG.debug("[vault] Cert login failed: {}", e.getMessage(), e);
@@ -353,5 +365,45 @@ class VaultClientProvider {
 
         }
         return authToken;
+    }
+
+    /**
+     * Logs in via Vault's TLS Certificate auth backend, pinning the login to a specific
+     * certificate role by sending the optional {@code name} field Vault's cert auth API accepts
+     * (see https://developer.hashicorp.com/vault/api-docs/auth/cert#login-with-tls-certificate-method).
+     * <p>
+     * {@link Auth#loginByCert(String)} in vault-java-driver does not expose this parameter, so this
+     * issues the {@code POST /v1/auth/<mount>/login} request directly (mirroring what the driver does
+     * internally, e.g. for {@code loginByAppRole}), reusing the already-configured TLS material and
+     * shared {@link HttpClient} from {@code vaultConfig}.
+     */
+    private String loginByCertWithRoleName(VaultConfig vaultConfig, String mount, String roleName)
+            throws VaultException {
+        final String requestJson = Json.object().add("name", roleName).toString();
+
+        final RestResponse restResponse;
+        try {
+            restResponse = new Rest(vaultConfig.getHttpClient())
+                    .url(vaultConfig.getAddress() + "/v1/auth/" + mount + "/login")
+                    .header("X-Vault-Namespace", vaultConfig.getNameSpace())
+                    .header("X-Vault-Request", "true")
+                    .body(requestJson.getBytes(StandardCharsets.UTF_8))
+                    .connectTimeoutSeconds(vaultConfig.getOpenTimeout())
+                    .readTimeoutSeconds(vaultConfig.getReadTimeout())
+                    .sslVerification(vaultConfig.getSslConfig().isVerify())
+                    .sslContext(vaultConfig.getSslConfig().getSslContext())
+                    .post();
+        } catch (RestException e) {
+            throw new VaultException(e);
+        }
+
+        if (restResponse.getStatus() != 200) {
+            throw new VaultException(
+                    "Vault responded with HTTP status code: " + restResponse.getStatus()
+                            + "\nResponse body: " + new String(restResponse.getBody(), StandardCharsets.UTF_8),
+                    restResponse.getStatus());
+        }
+
+        return new AuthResponse(restResponse, 0).getAuthClientToken();
     }
 }

@@ -31,5 +31,6 @@ class ConfigOptions {
     static final String VAULT_USE_VAULT_METADATA_TIMESTAMPS = "useVaultMetadataTimestamps";
     static final String VAULT_AUTH_NAMESPACE = "authNamespace";
     static final String VAULT_CERT_AUTH_MOUNT = "certAuthMount";
+    static final String VAULT_CERT_ROLE_NAME = "certRoleName";
 
 }

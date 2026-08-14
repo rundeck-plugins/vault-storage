@@ -426,6 +426,14 @@ class VaultClientProvider {
                     restResponse.getStatus());
         }
 
+        // Same MIME-type check Auth.loginByCert()/loginByAppRole() do internally: surfaces a clear
+        // error for a 200 with an unexpected body (e.g. a proxy in front of Vault) instead of
+        // AuthResponse silently swallowing the JSON parse failure and returning a null token.
+        final String mimeType = restResponse.getMimeType() == null ? "null" : restResponse.getMimeType();
+        if (!mimeType.equals("application/json")) {
+            throw new VaultException("Vault responded with MIME type: " + mimeType, restResponse.getStatus());
+        }
+
         return new AuthResponse(restResponse, 0).getAuthClientToken();
     }
 }

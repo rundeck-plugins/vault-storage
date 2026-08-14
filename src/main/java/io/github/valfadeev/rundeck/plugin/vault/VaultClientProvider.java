@@ -381,18 +381,40 @@ class VaultClientProvider {
             throws VaultException {
         final String requestJson = Json.object().add("name", roleName).toString();
 
+        // Same defensive guards as VaultKvMetadataReader.readSecretTimestamps, for consistency:
+        // trim a trailing '/' from the address, and only set namespace/sslContext when present.
+        // None of these are live bugs against vault-java-driver 6.2.2 today -- VaultConfig.address()
+        // already strips a trailing slash, and Rest already no-ops on a null/empty header value or a
+        // null sslContext -- but guarding explicitly here doesn't rely on those driver internals.
+        String address = vaultConfig.getAddress();
+        if (address != null && address.endsWith("/")) {
+            address = address.substring(0, address.length() - 1);
+        }
+
+        final SslConfig sslConfig = vaultConfig.getSslConfig();
+
         final RestResponse restResponse;
         try {
-            restResponse = new Rest(vaultConfig.getHttpClient())
-                    .url(vaultConfig.getAddress() + "/v1/auth/" + mount + "/login")
-                    .header("X-Vault-Namespace", vaultConfig.getNameSpace())
+            Rest rest = new Rest(vaultConfig.getHttpClient())
+                    .url(address + "/v1/auth/" + mount + "/login")
                     .header("X-Vault-Request", "true")
                     .body(requestJson.getBytes(StandardCharsets.UTF_8))
                     .connectTimeoutSeconds(vaultConfig.getOpenTimeout())
-                    .readTimeoutSeconds(vaultConfig.getReadTimeout())
-                    .sslVerification(vaultConfig.getSslConfig().isVerify())
-                    .sslContext(vaultConfig.getSslConfig().getSslContext())
-                    .post();
+                    .readTimeoutSeconds(vaultConfig.getReadTimeout());
+
+            final String nameSpace = vaultConfig.getNameSpace();
+            if (nameSpace != null && !nameSpace.isEmpty()) {
+                rest.header("X-Vault-Namespace", nameSpace);
+            }
+
+            if (sslConfig != null) {
+                rest.sslVerification(sslConfig.isVerify());
+                if (sslConfig.getSslContext() != null) {
+                    rest.sslContext(sslConfig.getSslContext());
+                }
+            }
+
+            restResponse = rest.post();
         } catch (RestException e) {
             throw new VaultException(e);
         }

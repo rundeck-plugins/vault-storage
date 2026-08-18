@@ -23,7 +23,7 @@ services:
     links:
     - vault
     environment:
-    - RUNDECK_GRAILS_URL=http://localhost:4440
+    - RUNDECK_GRAILS_URL=http://rundeck1:4440
     - RUNDECK_NODE=rundeck1
     - SETUP_TEST_PROJECT=vaulttest
     - RUNDECK_STORAGE_PROVIDER_1_TYPE=vault-storage

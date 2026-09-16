@@ -11,7 +11,7 @@ ext.developers = [
         [id: 'gschueler', name: 'Greg Schueler', email: 'greg@rundeck.com']
 ]
 
-ext.rundeckVersion='6.2.0-20260908'
+ext.rundeckVersion='7.0.0-SNAPSHOT'
 defaultTasks 'clean','build'
 apply plugin: 'java'
 apply plugin: 'idea'
@@ -19,8 +19,8 @@ apply plugin: 'pl.allegro.tech.build.axion-release'
 apply plugin: 'groovy'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
     withSourcesJar()
     withJavadocJar()
 }

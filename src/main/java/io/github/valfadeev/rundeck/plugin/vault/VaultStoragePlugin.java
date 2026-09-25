@@ -38,8 +38,6 @@ import static io.github.valfadeev.rundeck.plugin.vault.ConfigOptions.*;
 public class VaultStoragePlugin implements StoragePlugin {
     private static final Logger LOG = LoggerFactory.getLogger(VaultStoragePlugin.class);
 
-    java.util.logging.Logger log = java.util.logging.Logger.getLogger("vault-storage");
-
     public VaultStoragePlugin() {}
 
     protected static final String VAULT_STORAGE_KEY = "data";
@@ -384,29 +382,36 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     protected void lookup(){
+        LOG.debug("Beginning Vault lookup...");
         try {
+            LOG.debug("Will try to lookup self...");
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
+            LOG.debug("Finished Vault self-lookup successfully.");
             if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
+                LOG.debug("Token is about to expire, will try login again");
                 loginVault(clientProvider);
             }
         } catch (VaultException e) {
             if(e.getHttpStatusCode() == 403){//try login again
+                LOG.debug("Received 403, will try login again");
                 loginVault(clientProvider);
             } else {
-                e.printStackTrace();
+                LOG.warn("Caught VaultException during lookup: {}", e.getMessage(), e);
             }
         } catch (ConfigurationException e) {
-            e.printStackTrace();
+            LOG.warn("Caught ConfigurationException during lookup: {}", e.getMessage(), e);
         }
     }
 
     private void loginVault(VaultClientProvider provider){
+        LOG.debug("Logging into Vault...");
         try{
             vaultClient = provider.getVaultClient();
             vault = vaultClient.logical();
+            LOG.debug("Logged into Vault successfully");
         }
-        catch (Exception ignored){
-
+        catch (Exception e){
+            LOG.warn("Error logging into Vault: {}", e.getMessage(), e);
         }
     }
 
@@ -429,7 +434,7 @@ public class VaultStoragePlugin implements StoragePlugin {
                 return false;
             }
         } catch (VaultException e) {
-            log.info("error:" + e.getMessage());
+            LOG.info("Error while checking Vault path: {}", e.getMessage(), e);
             return false;
         }
     }
@@ -469,7 +474,8 @@ public class VaultStoragePlugin implements StoragePlugin {
         }
 
         Map<String, Object> payload = object.saveResource(content, event, baoStream);
-        LOG.debug("Generated payload for path {} with event {}: {}", path, event, payload);
+        //only the payload keys are logged: the values hold the secret material
+        LOG.debug("Generated payload for path {} with event {} with keys {}", path, event, payload.keySet());
 
         try {
             lookup();

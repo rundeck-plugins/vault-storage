@@ -386,10 +386,11 @@ public class VaultStoragePlugin implements StoragePlugin {
         try {
             LOG.debug("Will try to lookup self...");
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
+            LOG.debug("Finished Vault self-lookup successfully.");
             if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
+                LOG.debug("Token is about to expire, will try login again");
                 loginVault(clientProvider);
             }
-            LOG.debug("Finished Vault lookup successfully.");
         } catch (VaultException e) {
             if(e.getHttpStatusCode() == 403){//try login again
                 LOG.debug("Received 403, will try login again");

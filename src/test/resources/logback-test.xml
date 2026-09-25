@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Keeps the test output quiet: the logging tests attach their own appender to the plugin logger. -->
+<configuration>
+    <root level="OFF"/>
+</configuration>

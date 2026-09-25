@@ -91,6 +91,9 @@ dependencies {
 
     )
 
+    // Test-only SLF4J binding: lets the logging regression tests capture what the plugin logs.
+    testImplementation 'ch.qos.logback:logback-classic:1.5.18'
+
     // Required so JUnit 4 test classes are discovered under useJUnitPlatform() (otherwise only the Spock spec runs).
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.14.4'
     testImplementation "org.apache.groovy:groovy-all:4.0.33"

@@ -78,13 +78,13 @@ dependencies {
     testImplementation group: 'org.rundeck', name: 'rundeck-core', version: rundeckVersion
 
     // Add secure commons-lang3 to provide alternative to vulnerable commons-lang 2.6
-    implementation 'org.apache.commons:commons-lang3:3.20.0'
+    implementation 'org.apache.commons:commons-lang3:3.21.0'
     
     testImplementation(
             [group: 'junit', name: 'junit', version: '4.13.2', ext: 'jar'],
             [group: 'org.hamcrest', name: 'hamcrest-core', version: '3.0', ext: 'jar'],
             [group: 'org.hamcrest', name: 'hamcrest-library', version: '3.0', ext: 'jar'],
-            [group: 'org.mockito', name: 'mockito-core', version: '5.23.0', ext: 'jar'],
+            [group: 'org.mockito', name: 'mockito-core', version: '5.24.0', ext: 'jar'],
             [group: 'net.bytebuddy', name: 'byte-buddy', version: '1.18.14'],
             [group: 'net.bytebuddy', name: 'byte-buddy-agent', version: '1.18.14'],
             [group: 'org.objenesis', name: 'objenesis', version: '3.6']
@@ -92,7 +92,7 @@ dependencies {
     )
 
     // Test-only SLF4J binding: lets the logging regression tests capture what the plugin logs.
-    testImplementation 'ch.qos.logback:logback-classic:1.6.3'
+    testImplementation 'ch.qos.logback:logback-classic:1.6.4'
 
     // Required so JUnit 4 test classes are discovered under useJUnitPlatform() (otherwise only the Spock spec runs).
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.14.4'
@@ -106,7 +106,7 @@ configurations.all {
     resolutionStrategy {
         // Replace vulnerable commons-lang with secure commons-lang3
         dependencySubstitution {
-            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.20.0')
+            substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.21.0')
         }
     }
 }

@@ -11,7 +11,7 @@ ext.developers = [
         [id: 'gschueler', name: 'Greg Schueler', email: 'greg@rundeck.com']
 ]
 
-ext.rundeckVersion='6.2.1-20260909'
+ext.rundeckVersion='6.3.0-20261022'
 defaultTasks 'clean','build'
 apply plugin: 'java'
 apply plugin: 'idea'
@@ -108,6 +108,9 @@ configurations.all {
         dependencySubstitution {
             substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.21.0')
         }
+        // Pin patched versions of vulnerable transitives pulled in by rundeck-core
+        force 'com.fasterxml.jackson.core:jackson-databind:2.22.4'
+        force 'com.google.guava:guava:33.7.2-jre'
     }
 }
 

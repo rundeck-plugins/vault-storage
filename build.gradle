@@ -85,14 +85,14 @@ dependencies {
             [group: 'org.hamcrest', name: 'hamcrest-core', version: '3.0', ext: 'jar'],
             [group: 'org.hamcrest', name: 'hamcrest-library', version: '3.0', ext: 'jar'],
             [group: 'org.mockito', name: 'mockito-core', version: '5.24.0', ext: 'jar'],
-            [group: 'net.bytebuddy', name: 'byte-buddy', version: '1.18.15-jdk5'],
-            [group: 'net.bytebuddy', name: 'byte-buddy-agent', version: '1.18.15-jdk5'],
+            [group: 'net.bytebuddy', name: 'byte-buddy', version: '1.18.17-jdk5'],
+            [group: 'net.bytebuddy', name: 'byte-buddy-agent', version: '1.18.17-jdk5'],
             [group: 'org.objenesis', name: 'objenesis', version: '3.6']
 
     )
 
     // Test-only SLF4J binding: lets the logging regression tests capture what the plugin logs.
-    testImplementation 'ch.qos.logback:logback-classic:1.6.5'
+    testImplementation 'ch.qos.logback:logback-classic:1.6.6'
 
     // Required so JUnit 4 test classes are discovered under useJUnitPlatform() (otherwise only the Spock spec runs).
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.14.4'

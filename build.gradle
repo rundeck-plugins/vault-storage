@@ -109,7 +109,7 @@ configurations.all {
             substitute module('commons-lang:commons-lang') using module('org.apache.commons:commons-lang3:3.21.0')
         }
         // Pin patched versions of vulnerable transitives pulled in by rundeck-core
-        force 'com.fasterxml.jackson.core:jackson-databind:2.22.4'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.23.0'
         force 'com.google.guava:guava:33.7.2-jre'
     }
 }

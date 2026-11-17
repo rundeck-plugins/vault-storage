@@ -8,6 +8,7 @@ import io.github.jopenlibs.vault.response.LookupResponse;
 import com.dtolabs.rundeck.core.plugins.configuration.ConfigurationException;
 import org.junit.Test;
 import org.mockito.Spy;
+import org.rundeck.storage.api.StorageException;
 
 import java.util.Properties;
 
@@ -160,5 +161,25 @@ public class VaultStoragePluginTest {
         vaultStoragePlugin.lookup();
 
         verify(vaultClientProvider, times(2)).getVaultClient();
+    }
+
+    @Test
+    public void failedFirstLogin_reportsTheLoginErrorInsteadOfNullPointerException() throws ConfigurationException {
+        VaultStoragePlugin plugin = spy(new VaultStoragePlugin());
+        VaultClientProvider vaultClientProvider = mock(VaultClientProvider.class);
+
+        plugin.maxRetries = "5";
+        plugin.readTimeout = "2";
+        plugin.openTimeout = "2";
+        plugin.retryIntervalMilliseconds = "1000";
+
+        doReturn(vaultClientProvider).when(plugin).getVaultClientProvider(org.mockito.ArgumentMatchers.any(Properties.class));
+        doThrow(new ConfigurationException("Encountered error while authenticating with approle: invalid secret id"))
+                .when(vaultClientProvider).getVaultClient();
+
+        StorageException thrown = assertThrows(StorageException.class, () -> plugin.hasDirectory("keys/test"));
+
+        assertThat(thrown.getMessage(), containsString("Unable to authenticate with Vault"));
+        assertThat(thrown.getMessage(), containsString("invalid secret id"));
     }
 }

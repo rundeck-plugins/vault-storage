@@ -128,4 +128,64 @@ public class VaultClientProviderTest {
             server.stop(0);
         }
     }
+
+    /**
+     * A namespace configured as an empty string (e.g. {@code config.namespace=}) means "no
+     * namespace". The driver rejects an empty namespace, so it must not be passed on.
+     */
+    @Test
+    public void blankNamespaceIsTreatedAsNoNamespace() throws Exception {
+        Properties configuration = new Properties();
+        configuration.load(getClass().getResourceAsStream("rundeck-config.properties"));
+        configuration.setProperty("namespace", "");
+
+        VaultConfig config = new VaultClientProvider(configuration).getVaultConfig();
+
+        assertThat(config.getNameSpace(), is(nullValue()));
+    }
+
+    /**
+     * When {@code approleAuthMount} is not configured, the AppRole login must go to the default
+     * {@code approle} mount, the same way userpass and cert fall back to their default mounts.
+     */
+    @Test
+    public void appRoleWithoutMountLogsInAtDefaultMount() throws Exception {
+        final String[] capturedPath = new String[1];
+
+        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            capturedPath[0] = exchange.getRequestURI().getPath();
+            exchange.getRequestBody().readAllBytes();
+
+            byte[] response = ("{\"auth\":{\"client_token\":\"s.faketoken\",\"renewable\":false,"
+                    + "\"lease_duration\":0,\"policies\":[\"default\"]},\"renewable\":false}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+
+        try {
+            Properties configuration = new Properties();
+            configuration.setProperty("address", "http://localhost:" + server.getAddress().getPort());
+            configuration.setProperty("authBackend", "approle");
+            configuration.setProperty("approleId", "role-id");
+            configuration.setProperty("approleSecretId", "secret-id");
+            configuration.setProperty("validateSsl", "false");
+            configuration.setProperty("maxRetries", "0");
+            configuration.setProperty("retryIntervalMilliseconds", "0");
+            configuration.setProperty("openTimeout", "5");
+            configuration.setProperty("readTimeout", "5");
+            configuration.setProperty("engineVersion", "1");
+
+            Vault vault = new VaultClientProvider(configuration).getVaultClient();
+
+            assertThat(vault, is(notNullValue()));
+            assertThat(capturedPath[0], is("/v1/auth/approle/login"));
+        } finally {
+            server.stop(0);
+        }
+    }
 }

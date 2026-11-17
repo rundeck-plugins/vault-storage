@@ -88,7 +88,7 @@ class VaultClientProvider {
                 .sslConfig(sslConfig)
                 .httpClient(getOrCreateSharedHttpClient(sslConfig));
 
-        if(nameSpace != null){
+        if(nameSpace != null && !nameSpace.isEmpty()){
             try {
                 vaultConfig.nameSpace(nameSpace);
             } catch (VaultException e) {
@@ -247,7 +247,12 @@ class VaultClientProvider {
                 LOG.debug("[vault] auth=APPROLE");
                 final String vaultApproleId = configuration.getProperty(VAULT_APPROLE_ID);
                 final String vaultApproleSecretId = configuration.getProperty(VAULT_APPROLE_SECRET_ID);
-                final String vaultApproleAuthMount = configuration.getProperty(VAULT_APPROLE_AUTH_MOUNT);
+                final String configuredApproleMount = configuration.getProperty(VAULT_APPROLE_AUTH_MOUNT);
+                // The driver concatenates the mount into the login URL without a null check,
+                // so an unset mount would otherwise log in at auth/null/login.
+                final String vaultApproleAuthMount =
+                        (configuredApproleMount == null || configuredApproleMount.isEmpty())
+                                ? "approle" : configuredApproleMount;
 
                 if (vaultApproleId == null || vaultApproleSecretId == null) {
                     LOG.debug("[vault] missing AppRole id/secret");

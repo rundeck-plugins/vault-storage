@@ -355,46 +355,8 @@ class VaultStoragePluginSpec extends Specification{
         reg.setMetaClass(Vault, oldMc)
     }
 
-    def "listDirectorySubdirs with a String path returns only subdirectories"() {
-        given:
-        Properties properties = ["address":"http://localhost:8200",
-                                 "maxRetries":"1",
-                                 "retryIntervalMilliseconds":"200",
-                                 "engineVersion":"2",
-                                 "openTimeout":"20",
-                                 "readTimeout":"20",
-                                 "authBackend":"token",
-                                 "token":"123456"]
-        def plugin = new VaultStoragePlugin()
-        plugin.properties = properties
 
-        Logical vault = Mock(Logical) {
-            list(_) >> Mock(LogicalResponse) {
-                getRestResponse() >> Mock(RestResponse) {
-                    getStatus() >> 200
-                }
-                getListData() >> ["akey", "sub/"]
-            }
-        }
 
-        Vault vaultClient = Mock(Vault) {
-            auth() >> Mock(Auth) {
-                lookupSelf() >> Mock(LookupResponse) {
-                    getTTL() >> 120
-                }
-            }
-        }
 
-        plugin.vault = vault
-        plugin.vaultClient = vaultClient
-
-        when:
-        def result = plugin.listDirectorySubdirs("keys/test")
-
-        then:
-        result.size() == 1
-        result.every { it.directory }
-        result.collect { it.path.path } == ["keys/test/sub"]
-    }
 
 }

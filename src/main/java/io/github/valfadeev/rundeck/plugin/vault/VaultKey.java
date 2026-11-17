@@ -271,8 +271,9 @@ public class VaultKey extends KeyObject {
             this.parent.getKeys().remove(key);
 
             try {
-                vault.write(VaultStoragePlugin.getVaultPath(this.parent.getPath().getPath(),vaultSecretBackend, vaultPrefix), this.parent.getKeys());
-                return true;
+                LogicalResponse response = vault.write(VaultStoragePlugin.getVaultPath(this.parent.getPath().getPath(),vaultSecretBackend, vaultPrefix), this.parent.getKeys());
+                // 4xx responses are returned, not thrown: a rejected write did not delete anything
+                return VaultStoragePlugin.writeStatus(response) < 400;
             } catch (VaultException e) {
                 throw new StorageException(
                         String.format("Encountered error while writing data to Vault %s",

@@ -2,6 +2,7 @@ package io.github.valfadeev.rundeck.plugin.vault;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -481,7 +482,19 @@ public class VaultStoragePlugin implements StoragePlugin {
             lookup();
             String vaultPath = getVaultPath(object.getPath().getPath(), secretBackend, prefix);
             LOG.debug("Writing data to Vault at {} for path {} with event {}", vaultPath, path, event);
-            vault.write(vaultPath, payload);
+            LogicalResponse response = vault.write(vaultPath, payload);
+            // The driver returns 4xx responses instead of throwing, so a rejected write
+            // (e.g. 403 from policy) has to be detected here.
+            int status = writeStatus(response);
+            if (status >= 400) {
+                LOG.debug("Vault rejected write at {} for path {} with event {}: HTTP {}", vaultPath, path, event, status);
+                byte[] body = response.getRestResponse().getBody();
+                throw new StorageException(
+                        String.format("Vault rejected the write with HTTP status %d: %s",
+                                status, body == null ? "" : new String(body, StandardCharsets.UTF_8)),
+                        StorageException.Event.valueOf(event.toUpperCase()),
+                        path);
+            }
             LOG.debug("Successfully wrote data to Vault at {} for path {} with event {}", vaultPath, path, event);
         } catch (VaultException e) {
             LOG.debug("Failed to write data to Vault for path {} with event {}. Error: {}", path, event, e.getMessage(), e);
@@ -493,6 +506,14 @@ public class VaultStoragePlugin implements StoragePlugin {
         }
     }
 
+
+    /** HTTP status of a write response, or 0 when the response carries none. */
+    static int writeStatus(LogicalResponse response) {
+        if (response == null || response.getRestResponse() == null) {
+            return 0;
+        }
+        return response.getRestResponse().getStatus();
+    }
 
     private Resource<ResourceMeta> loadDir(Path path) {
         return new ResourceBase<>(path, null, true);

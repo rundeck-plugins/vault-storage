@@ -1,14 +1,16 @@
 package io.github.valfadeev.rundeck.plugin.vault;
 
+import com.dtolabs.rundeck.core.storage.ResourceMeta;
 import io.github.jopenlibs.vault.Vault;
 import io.github.jopenlibs.vault.VaultException;
 import io.github.jopenlibs.vault.api.Auth;
 import io.github.jopenlibs.vault.api.Logical;
-import io.github.jopenlibs.vault.response.LookupResponse;
 import io.github.jopenlibs.vault.response.LogicalResponse;
+import io.github.jopenlibs.vault.response.LookupResponse;
 import io.github.jopenlibs.vault.rest.RestResponse;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
+import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
 
 import java.util.Collections;
@@ -27,14 +29,54 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * {@code lookup()} trusts a successful lookup-self result for a short while instead of calling
- * Vault before every read. With the settings below the guaranteed validity is 25 seconds.
+ * Reads trust a successful lookup-self result for a short while instead of calling Vault before
+ * every single key; lists and writes always check the token. With the settings below the
+ * guaranteed validity is 25 seconds.
  */
 public class VaultStoragePluginTokenCheckCacheTest {
 
+    private static final Path KEY = PathUtil.asPath("keys/test");
+
     private Auth auth;
+    private Vault vault;
     private VaultClientProvider vaultClientProvider;
     private long nowNanos = 1_000L;
+
+    private static RestResponse status(int status) {
+        RestResponse restResponse = mock(RestResponse.class);
+        doReturn(status).when(restResponse).getStatus();
+        return restResponse;
+    }
+
+    /** A Vault client whose reads all answer with the given status and data. */
+    private static Vault vaultWhoseReadsReturn(Auth auth, int status, Map<String, String> data) throws Exception {
+        LogicalResponse read = mock(LogicalResponse.class);
+        doReturn(status(status)).when(read).getRestResponse();
+        doReturn(data).when(read).getData();
+
+        LogicalResponse list = mock(LogicalResponse.class);
+        doReturn(status(200)).when(list).getRestResponse();
+        doReturn(Collections.singletonList("test")).when(list).getListData();
+
+        LogicalResponse write = mock(LogicalResponse.class);
+        doReturn(status(204)).when(write).getRestResponse();
+
+        Logical logical = mock(Logical.class);
+        doReturn(read).when(logical).read(ArgumentMatchers.anyString());
+        doReturn(list).when(logical).list(ArgumentMatchers.anyString());
+        doReturn(write).when(logical).write(ArgumentMatchers.anyString(), ArgumentMatchers.anyMap());
+
+        Vault vault = mock(Vault.class);
+        doReturn(auth).when(vault).auth();
+        doReturn(logical).when(vault).logical();
+        return vault;
+    }
+
+    private static Map<String, String> storedSecret() {
+        Map<String, String> stored = new HashMap<>();
+        stored.put("value", "s3cret");
+        return stored;
+    }
 
     private VaultStoragePlugin pluginWithTokenTtl(long ttl) throws Exception {
         VaultStoragePlugin plugin = spy(new VaultStoragePlugin());
@@ -48,9 +90,7 @@ public class VaultStoragePluginTokenCheckCacheTest {
         doReturn(ttl).when(lookupSelf).getTTL();
         auth = mock(Auth.class);
         doReturn(lookupSelf).when(auth).lookupSelf();
-        Vault vault = mock(Vault.class);
-        doReturn(auth).when(vault).auth();
-        doReturn(mock(Logical.class)).when(vault).logical();
+        vault = vaultWhoseReadsReturn(auth, 200, storedSecret());
 
         vaultClientProvider = mock(VaultClientProvider.class);
         doReturn(vault).when(vaultClientProvider).getVaultClient();
@@ -63,27 +103,28 @@ public class VaultStoragePluginTokenCheckCacheTest {
     }
 
     @Test
-    public void repeatedLookupsWithinTheWindowCallVaultOnce() throws Exception {
+    public void repeatedReadsWithinTheWindowCheckTheTokenOnce() throws Exception {
         VaultStoragePlugin plugin = pluginWithTokenTtl(3600L);
 
         for (int i = 0; i < 50; i++) {
-            plugin.lookup();
+            assertFalse(plugin.getVaultObject(KEY).isError());
         }
 
         verify(auth, times(1)).lookupSelf();
+        verify(vault.logical(), times(50)).read(ArgumentMatchers.anyString());
     }
 
     @Test
-    public void tokenIsCheckedAgainOnceTheWindowHasPassed() throws Exception {
+    public void readChecksTheTokenAgainOnceTheWindowHasPassed() throws Exception {
         VaultStoragePlugin plugin = pluginWithTokenTtl(3600L);
 
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         advanceSeconds(VaultStoragePlugin.MAX_TOKEN_CHECK_VALIDITY_SECONDS - 1);
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         verify(auth, times(1)).lookupSelf();
 
         advanceSeconds(1);
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         verify(auth, times(2)).lookupSelf();
     }
 
@@ -92,12 +133,12 @@ public class VaultStoragePluginTokenCheckCacheTest {
         //ttl=0: the token does not expire, but it can still be revoked
         VaultStoragePlugin plugin = pluginWithTokenTtl(0L);
 
-        plugin.lookup();
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
+        plugin.getVaultObject(KEY);
         verify(auth, times(1)).lookupSelf();
 
         advanceSeconds(VaultStoragePlugin.MAX_TOKEN_CHECK_VALIDITY_SECONDS);
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         verify(auth, times(2)).lookupSelf();
     }
 
@@ -106,26 +147,26 @@ public class VaultStoragePluginTokenCheckCacheTest {
         //ttl 28s, guaranteed validity 25s: the token must be looked at again within 3 seconds
         VaultStoragePlugin plugin = pluginWithTokenTtl(28L);
 
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         advanceSeconds(2);
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         verify(auth, times(1)).lookupSelf();
 
         advanceSeconds(1);
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
         verify(auth, times(2)).lookupSelf();
     }
 
     @Test
     public void tokenThatNeededRefreshingIsNotTrusted() throws Exception {
-        //ttl below the guaranteed validity: every lookup logs in again and nothing is remembered
+        //ttl below the guaranteed validity: every read logs in again and nothing is remembered
         VaultStoragePlugin plugin = pluginWithTokenTtl(20L);
 
-        plugin.lookup();
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
+        plugin.getVaultObject(KEY);
 
         verify(auth, times(2)).lookupSelf();
-        //the initial login plus one refresh per lookup
+        //the initial login plus one refresh per read
         verify(vaultClientProvider, times(3)).getVaultClient();
     }
 
@@ -134,25 +175,38 @@ public class VaultStoragePluginTokenCheckCacheTest {
         VaultStoragePlugin plugin = pluginWithTokenTtl(3600L);
         doThrow(new VaultException("Vault is down", 503)).when(auth).lookupSelf();
 
-        plugin.lookup();
-        plugin.lookup();
+        plugin.getVaultObject(KEY);
+        plugin.getVaultObject(KEY);
 
         verify(auth, times(2)).lookupSelf();
     }
 
-    private static Vault vaultWhoseReadsReturn(Auth auth, int status, Map<String, String> data) throws Exception {
-        RestResponse restResponse = mock(RestResponse.class);
-        doReturn(status).when(restResponse).getStatus();
-        LogicalResponse response = mock(LogicalResponse.class);
-        doReturn(restResponse).when(response).getRestResponse();
-        doReturn(data).when(response).getData();
-        Logical logical = mock(Logical.class);
-        doReturn(response).when(logical).read(ArgumentMatchers.anyString());
+    /** Only reads skip the check: a list always asks Vault first, as before. */
+    @Test
+    public void listsAlwaysCheckTheToken() throws Exception {
+        VaultStoragePlugin plugin = pluginWithTokenTtl(3600L);
 
-        Vault vault = mock(Vault.class);
-        doReturn(auth).when(vault).auth();
-        doReturn(logical).when(vault).logical();
-        return vault;
+        plugin.getVaultObject(KEY);
+        verify(auth, times(1)).lookupSelf();
+
+        assertTrue(plugin.hasDirectory("keys"));
+        assertTrue(plugin.hasDirectory("keys"));
+        verify(auth, times(3)).lookupSelf();
+    }
+
+    /** A write always asks Vault first; the read-back that follows it relies on that check. */
+    @Test
+    public void writesAlwaysCheckTheToken() throws Exception {
+        VaultStoragePlugin plugin = pluginWithTokenTtl(3600L);
+        ResourceMeta content = mock(ResourceMeta.class);
+        doReturn(new HashMap<String, String>()).when(content).getMeta();
+
+        plugin.getVaultObject(KEY);
+        verify(auth, times(1)).lookupSelf();
+
+        plugin.createResource(KEY, content);
+        verify(auth, times(2)).lookupSelf();
+        verify(vault.logical(), times(1)).write(ArgumentMatchers.anyString(), ArgumentMatchers.anyMap());
     }
 
     /**
@@ -168,14 +222,13 @@ public class VaultStoragePluginTokenCheckCacheTest {
         Auth revokedAuth = mock(Auth.class);
         doReturn(healthy).doThrow(new VaultException("permission denied", 403)).when(revokedAuth).lookupSelf();
 
-        Map<String, String> stored = new HashMap<>();
-        stored.put("value", "s3cret");
         Vault revoked = vaultWhoseReadsReturn(revokedAuth, 403, Collections.emptyMap());
-        Vault fresh = vaultWhoseReadsReturn(auth, 200, stored);
-        doReturn(revoked, fresh).when(vaultClientProvider).getVaultClient();
+        doReturn(revoked, vault).when(vaultClientProvider).getVaultClient();
 
-        plugin.lookup();
-        KeyObject object = plugin.getVaultObject(PathUtil.asPath("keys/test"));
+        //first read: checks the token (still healthy), then fails with 403 and stays failed
+        plugin.getVaultObject(KEY);
+        //second read: the check is trusted, the read fails, the token is checked again -> new login
+        KeyObject object = plugin.getVaultObject(KEY);
 
         assertFalse("the read must succeed after the new login", object.isError());
         verify(vaultClientProvider, times(2)).getVaultClient();
@@ -185,15 +238,15 @@ public class VaultStoragePluginTokenCheckCacheTest {
     @Test
     public void readOfAMissingKeyOnATrustedTokenIsNotRepeated() throws Exception {
         VaultStoragePlugin plugin = pluginWithTokenTtl(3600L);
-        Vault vault = vaultWhoseReadsReturn(auth, 404, Collections.emptyMap());
-        doReturn(vault).when(vaultClientProvider).getVaultClient();
+        Vault missing = vaultWhoseReadsReturn(auth, 404, Collections.emptyMap());
+        doReturn(missing).when(vaultClientProvider).getVaultClient();
 
-        plugin.lookup();
-        KeyObject object = plugin.getVaultObject(PathUtil.asPath("keys/missing"));
+        plugin.getVaultObject(KEY);
+        KeyObject object = plugin.getVaultObject(KEY);
 
         assertTrue(object.isError());
         verify(vaultClientProvider, times(1)).getVaultClient();
-        //one read of the key and one of its parent path, each done once
-        verify(vault.logical(), times(2)).read(ArgumentMatchers.anyString());
+        //two reads of the key and two of its parent path: nothing is read twice within one call
+        verify(missing.logical(), times(4)).read(ArgumentMatchers.anyString());
     }
 }

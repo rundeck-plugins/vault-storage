@@ -53,9 +53,9 @@ public class VaultStoragePlugin implements StoragePlugin {
     public static final int MAX_GUARANTEED_VALIDITY_SECONDS = 60;
 
     /**
-     * Longest time, in seconds, a successful lookup-self result is trusted before the token is
-     * checked again. Kept short so that a token revoked out of band is noticed quickly, while still
-     * covering a burst of operations (listing a directory, a job reading several keys).
+     * Longest time, in seconds, a successful lookup-self result is trusted before a read checks the
+     * token again. Kept short so that a token revoked out of band is noticed quickly, while still
+     * covering a burst of reads (listing a directory, a job reading several keys).
      */
     public static final int MAX_TOKEN_CHECK_VALIDITY_SECONDS = 10;
 
@@ -397,11 +397,6 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     protected void lookup(){
-        if (tokenCheckIsFresh()) {
-            // The token was checked moments ago and was not close to expiring: skip the
-            // lookup-self round trip, which would otherwise precede every single Vault read.
-            return;
-        }
         tokenChecked = false;
         LOG.debug("Beginning Vault lookup...");
         try {
@@ -426,6 +421,17 @@ public class VaultStoragePlugin implements StoragePlugin {
             }
         } catch (ConfigurationException e) {
             LOG.warn("Caught ConfigurationException during lookup: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Token check before a read. Lists and writes always call {@link #lookup()}; reads, which come
+     * one per key, skip the lookup-self round trip when the token was checked moments ago and was
+     * not close to expiring. {@link #getVaultObject(Path)} checks again if such a read fails.
+     */
+    private void lookupUnlessRecentlyChecked() {
+        if (!tokenCheckIsFresh()) {
+            lookup();
         }
     }
 
@@ -793,14 +799,13 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     public KeyObject getVaultObject(Path path){
         boolean skippedTokenCheck = tokenCheckIsFresh();
-        lookup();
+        lookupUnlessRecentlyChecked();
 
         KeyObject object = buildKeyObject(path);
         if (object.isError() && skippedTokenCheck) {
             // The read failed and the token was not checked just before it, so it may have been
             // revoked in the meantime. Check it now; if that led to a new login, read again.
             Logical previous = vault;
-            tokenChecked = false;
             lookup();
             if (vault != previous) {
                 object = buildKeyObject(path);
@@ -836,8 +841,6 @@ public class VaultStoragePlugin implements StoragePlugin {
     private List<String> getVaultList(String path) throws VaultException {
         LogicalResponse response = vault.list(getVaultPath(path,secretBackend,prefix));
         if (response.getRestResponse().getStatus()==403){
-            // the token may have been revoked since it was last checked
-            tokenChecked = false;
             String body = new String(response.getRestResponse().getBody());
             throw StorageException.listException(
                     PathUtil.asPath(path),

@@ -98,8 +98,29 @@ class VaultClientProvider {
             }
         }
 
+        // KV v2 inserts "data"/"metadata" after the mount. The driver assumes a single-segment mount
+        // unless told otherwise, so a mount such as "team/kv" needs its depth set explicitly.
+        final int mountDepth = pathDepth(configuration.getProperty(VAULT_SECRET_BACKEND));
+        if (mountDepth > 1) {
+            vaultConfig.prefixPathDepth(mountDepth);
+        }
+
         LOG.debug("[vault] built VaultConfig for address='{}', namespace='{}'", vaultAddress, nameSpace);
         return vaultConfig;
+    }
+
+    /** Number of non-empty {@code /}-separated segments in a mount path. */
+    static int pathDepth(String mount) {
+        if (mount == null) {
+            return 0;
+        }
+        int depth = 0;
+        for (String segment : mount.split("/")) {
+            if (!segment.isEmpty()) {
+                depth++;
+            }
+        }
+        return depth;
     }
 
     /**

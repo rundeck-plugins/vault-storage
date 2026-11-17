@@ -564,6 +564,13 @@ public class VaultStoragePlugin implements StoragePlugin {
             } else {
                 KeyObject object = this.getVaultObject(itemPath);
 
+                if (object.isError()) {
+                    // Listed but not readable (soft-deleted KV v2 version, or denied by policy).
+                    // Skip it rather than failing the listing of the whole directory.
+                    LOG.debug("Skipping unreadable entry {} while listing {}: {}", itemPath, path, object.getErrorMessage());
+                    continue;
+                }
+
                 if(rundeckObject){
                     //normal case with rundeck format
                     if(object.isRundeckObject()){

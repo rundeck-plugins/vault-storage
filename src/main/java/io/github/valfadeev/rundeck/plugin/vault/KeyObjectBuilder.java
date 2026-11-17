@@ -119,19 +119,19 @@ public class KeyObjectBuilder {
 
         if (object.isError()) {
             KeyObject parentObject = getVaultParentObject(path);
+            Path parentPath = PathUtil.parentPath(path);
+            String key = PathUtil.removePrefix(parentPath.toString(), path.toString());
 
-            if (parentObject != null) {
+            // The path only resolves through its parent if the parent secret really has that field;
+            // otherwise the key does not exist and the error must stand.
+            if (parentObject != null && parentObject.getKeys().containsKey(key)) {
                 object = new VaultKey(path, parentObject);
-                Path parentPath = PathUtil.parentPath(path);
-                String key = PathUtil.removePrefix(parentPath.toString(), path.toString());
 
                 object.setError(false);
                 object.setErrorMessage(null);
                 object.setMultiplesKeys(true);
 
-                if (parentObject.getKeys().containsKey(key)) {
-                    object.getKeys().put(key, parentObject.getKeys().get(key));
-                }
+                object.getKeys().put(key, parentObject.getKeys().get(key));
                 if (parentObject.getVaultMetadata() != null) {
                     object.setVaultMetadata(new HashMap<>(parentObject.getVaultMetadata()));
                 }

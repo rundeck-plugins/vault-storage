@@ -3,6 +3,8 @@ package io.github.valfadeev.rundeck.plugin.vault;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import io.github.jopenlibs.vault.Vault;
@@ -50,6 +52,13 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     public static final int MAX_GUARANTEED_VALIDITY_SECONDS = 60;
 
+    /**
+     * Longest time, in seconds, a successful lookup-self result is trusted before a read checks the
+     * token again. Kept short so that a token revoked out of band is noticed quickly, while still
+     * covering a burst of reads (listing a directory, a job reading several keys).
+     */
+    public static final int MAX_TOKEN_CHECK_VALIDITY_SECONDS = 10;
+
     private Logical vault;
     private int guaranteedTokenValidity;
     //if is true, objects will be saved with rundeck default headers behaivour
@@ -60,6 +69,12 @@ public class VaultStoragePlugin implements StoragePlugin {
     /** Effective after {@link #getVaultClient()}: KV v2 metadata reads for original created / updated times. */
     private boolean useVaultMetadataTimestampsEnabled;
     private int vaultEngineVersionParsed = 1;
+    /** Whether {@link #tokenCheckedUntilNanos} holds the result of a successful lookup-self. */
+    private volatile boolean tokenChecked;
+    /** {@link #nanoClock} reading until which the last successful lookup-self result is trusted. */
+    private volatile long tokenCheckedUntilNanos;
+    /** Monotonic clock; replaceable in tests. */
+    LongSupplier nanoClock = System::nanoTime;
 
     @PluginProperty(title = "vaultPrefix", description = "username for the account to authenticate to")
     @RenderingOption(key = StringRenderingConstants.GROUP_NAME, value = "Basic Config")
@@ -382,14 +397,20 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     protected void lookup(){
+        tokenChecked = false;
         LOG.debug("Beginning Vault lookup...");
         try {
             LOG.debug("Will try to lookup self...");
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
             LOG.debug("Finished Vault self-lookup successfully.");
-            if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
+            // lookup-self reports ttl=0 for tokens that never expire (root tokens, tokens without a TTL);
+            // those need no refresh. An expired token is answered with 403, handled below.
+            long ttl = lookupSelf.getTTL();
+            if (ttl != 0 && ttl <= guaranteedTokenValidity) {
                 LOG.debug("Token is about to expire, will try login again");
                 loginVault(clientProvider);
+            } else {
+                rememberTokenCheck(ttl);
             }
         } catch (VaultException e) {
             if(e.getHttpStatusCode() == 403){//try login again
@@ -403,7 +424,37 @@ public class VaultStoragePlugin implements StoragePlugin {
         }
     }
 
+    /**
+     * Token check before a read. Lists and writes always call {@link #lookup()}; reads, which come
+     * one per key, skip the lookup-self round trip when the token was checked moments ago and was
+     * not close to expiring. {@link #getVaultObject(Path)} checks again if such a read fails.
+     */
+    private void lookupUnlessRecentlyChecked() {
+        if (!tokenCheckIsFresh()) {
+            lookup();
+        }
+    }
+
+    private boolean tokenCheckIsFresh() {
+        return tokenChecked && nanoClock.getAsLong() - tokenCheckedUntilNanos < 0;
+    }
+
+    /**
+     * Trusts the token for a short while after a successful lookup-self: at most
+     * {@link #MAX_TOKEN_CHECK_VALIDITY_SECONDS}, and never past the point where the token would
+     * need refreshing. A ttl of 0 means the token does not expire.
+     */
+    private void rememberTokenCheck(long ttl) {
+        long seconds = MAX_TOKEN_CHECK_VALIDITY_SECONDS;
+        if (ttl != 0) {
+            seconds = Math.min(seconds, ttl - guaranteedTokenValidity);
+        }
+        tokenCheckedUntilNanos = nanoClock.getAsLong() + TimeUnit.SECONDS.toNanos(seconds);
+        tokenChecked = true;
+    }
+
     private void loginVault(VaultClientProvider provider){
+        tokenChecked = false;
         LOG.debug("Logging into Vault...");
         try{
             vaultClient = provider.getVaultClient();
@@ -747,7 +798,23 @@ public class VaultStoragePlugin implements StoragePlugin {
     }
 
     public KeyObject getVaultObject(Path path){
-        lookup();
+        boolean skippedTokenCheck = tokenCheckIsFresh();
+        lookupUnlessRecentlyChecked();
+
+        KeyObject object = buildKeyObject(path);
+        if (object.isError() && skippedTokenCheck) {
+            // The read failed and the token was not checked just before it, so it may have been
+            // revoked in the meantime. Check it now; if that led to a new login, read again.
+            Logical previous = vault;
+            lookup();
+            if (vault != previous) {
+                object = buildKeyObject(path);
+            }
+        }
+        return object;
+    }
+
+    private KeyObject buildKeyObject(Path path){
 
         VaultConfig vaultConfigForMetadata = null;
         if (clientProvider != null) {

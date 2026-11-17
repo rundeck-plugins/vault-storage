@@ -56,6 +56,8 @@ public class VaultStoragePlugin implements StoragePlugin {
     private boolean rundeckObject=true;
     private VaultClientProvider clientProvider;
     private Vault vaultClient;
+    /** Message of the most recent failed login, or null if the last login succeeded. */
+    private String lastLoginError;
     Properties properties = new Properties();
     /** Effective after {@link #getVaultClient()}: KV v2 metadata reads for original created / updated times. */
     private boolean useVaultMetadataTimestampsEnabled;
@@ -385,7 +387,16 @@ public class VaultStoragePlugin implements StoragePlugin {
         LOG.debug("Beginning Vault lookup...");
         try {
             LOG.debug("Will try to lookup self...");
-            LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
+            Vault client = getVaultClient();
+            if (client == null) {
+                // The login failed and there is no earlier client to fall back on. Report the
+                // real cause instead of letting callers hit a NullPointerException.
+                throw new StorageException(
+                        String.format("Unable to authenticate with Vault: %s", lastLoginError),
+                        StorageException.Event.READ,
+                        PathUtil.asPath("/"));
+            }
+            LookupResponse lookupSelf = client.auth().lookupSelf();
             LOG.debug("Finished Vault self-lookup successfully.");
             if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
                 LOG.debug("Token is about to expire, will try login again");
@@ -408,9 +419,11 @@ public class VaultStoragePlugin implements StoragePlugin {
         try{
             vaultClient = provider.getVaultClient();
             vault = vaultClient.logical();
+            lastLoginError = null;
             LOG.debug("Logged into Vault successfully");
         }
         catch (Exception e){
+            lastLoginError = e.getMessage();
             LOG.warn("Error logging into Vault: {}", e.getMessage(), e);
         }
     }

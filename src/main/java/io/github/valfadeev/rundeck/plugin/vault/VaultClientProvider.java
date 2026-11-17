@@ -88,7 +88,7 @@ class VaultClientProvider {
                 .sslConfig(sslConfig)
                 .httpClient(getOrCreateSharedHttpClient(sslConfig));
 
-        if(nameSpace != null){
+        if(nameSpace != null && !nameSpace.isEmpty()){
             try {
                 vaultConfig.nameSpace(nameSpace);
             } catch (VaultException e) {

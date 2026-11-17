@@ -710,7 +710,7 @@ public class VaultStoragePlugin implements StoragePlugin {
 
     @Override
     public Set<Resource<ResourceMeta>> listDirectorySubdirs(String path) {
-        return listDirectoryResources(PathUtil.asPath(path));
+        return listDirectorySubdirs(PathUtil.asPath(path));
     }
 
     @Override

@@ -5,6 +5,7 @@ import io.github.jopenlibs.vault.VaultException;
 import io.github.jopenlibs.vault.api.Logical;
 import io.github.jopenlibs.vault.response.DataMetadata;
 import io.github.jopenlibs.vault.response.LogicalResponse;
+import com.dtolabs.rundeck.core.storage.StorageUtil;
 import org.rundeck.storage.api.Path;
 import org.rundeck.storage.api.PathUtil;
 
@@ -84,6 +85,16 @@ public class KeyObjectBuilder {
         VaultKvMetadataReader.mergeInto(dataReadMetadata, secretTimestamps);
     }
 
+    /**
+     * A secret is in Rundeck format only if it carries the Rundeck headers next to {@code data}.
+     * A foreign secret that merely has a field named {@code data} is a plain Vault key/value secret.
+     */
+    static boolean isRundeckFormat(Map<String, String> secretData) {
+        return secretData != null
+                && secretData.get(StorageUtil.RES_META_RUNDECK_CONTENT_TYPE) != null
+                && secretData.get(StorageUtil.RES_META_RUNDECK_CONTENT_LENGTH) != null;
+    }
+
     KeyObject build() {
         LogicalResponse response;
         KeyObject object;
@@ -97,7 +108,7 @@ public class KeyObjectBuilder {
                 metadata = new HashMap<>(dataMetadata.getMetadataMap());
             }
 
-            if (data != null) {
+            if (data != null && isRundeckFormat(response.getData())) {
                 object = new RundeckKey(response, path);
             } else {
                 object = new VaultKey(response, path);

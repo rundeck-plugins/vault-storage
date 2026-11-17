@@ -387,7 +387,10 @@ public class VaultStoragePlugin implements StoragePlugin {
             LOG.debug("Will try to lookup self...");
             LookupResponse lookupSelf = getVaultClient().auth().lookupSelf();
             LOG.debug("Finished Vault self-lookup successfully.");
-            if (lookupSelf.getTTL() <= guaranteedTokenValidity || lookupSelf.getNumUses() < 0) {
+            // lookup-self reports ttl=0 for tokens that never expire (root tokens, tokens without a TTL);
+            // those need no refresh. An expired token is answered with 403, handled below.
+            long ttl = lookupSelf.getTTL();
+            if (ttl != 0 && ttl <= guaranteedTokenValidity) {
                 LOG.debug("Token is about to expire, will try login again");
                 loginVault(clientProvider);
             }
